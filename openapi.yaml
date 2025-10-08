@@ -1,0 +1,731 @@
+openapi: 3.0.3
+info:
+  title: MonPetitBiz WhatsApp Bot API
+  description: |
+    A WhatsApp bot API for micro-businesses in Africa to record transactions, 
+    track inventory, and generate financial reports through natural language conversations.
+    
+    ## Features
+    - WhatsApp webhook integration
+    - Natural language processing for business commands
+    - Transaction recording (sales & expenses)
+    - Inventory management
+    - Financial report generation
+    - PDF report delivery via WhatsApp
+    - Comprehensive health monitoring
+    
+    ## Authentication
+    Most endpoints require JWT authentication. Use the `/auth/send-otp` and 
+    `/auth/verify-otp` endpoints to obtain an access token.
+    
+  version: 1.0.0
+  contact:
+    name: MonPetitBiz Support
+    email: support@monpetitbiz.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+  - url: https://api.monpetitbiz.com
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User authentication and registration
+  - name: WhatsApp
+    description: WhatsApp webhook and messaging
+  - name: Health
+    description: System health and monitoring
+  - name: Dashboard
+    description: Web dashboard API (read-only)
+
+paths:
+  # Authentication Endpoints
+  /auth/send-otp:
+    post:
+      tags:
+        - Authentication
+      summary: Send OTP to phone number
+      description: Sends a one-time password to the specified phone number for authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phoneNumber
+              properties:
+                phoneNumber:
+                  type: string
+                  pattern: '^\+[1-9]\d{1,14}$'
+                  example: "+221123456789"
+                  description: Phone number in international format
+            examples:
+              senegal:
+                summary: Senegal phone number
+                value:
+                  phoneNumber: "+221123456789"
+              mali:
+                summary: Mali phone number  
+                value:
+                  phoneNumber: "+223123456789"
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "OTP sent successfully"
+        '400':
+          description: Invalid phone number format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/verify-otp:
+    post:
+      tags:
+        - Authentication
+      summary: Verify OTP and authenticate
+      description: Verifies the OTP code and returns an access token if valid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phoneNumber
+                - code
+              properties:
+                phoneNumber:
+                  type: string
+                  pattern: '^\+[1-9]\d{1,14}$'
+                  example: "+221123456789"
+                code:
+                  type: string
+                  pattern: '^\d{6}$'
+                  example: "123456"
+                  description: 6-digit OTP code
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  accessToken:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        '401':
+          description: Invalid OTP code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user and business
+      description: Creates a new user account with associated business
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phoneNumber
+                - businessName
+                - role
+              properties:
+                phoneNumber:
+                  type: string
+                  pattern: '^\+[1-9]\d{1,14}$'
+                  example: "+221123456789"
+                businessName:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: "Boutique Fatou"
+                role:
+                  type: string
+                  enum: [owner, seller]
+                  example: "owner"
+                language:
+                  type: string
+                  enum: [fr, wo]
+                  default: fr
+                  example: "fr"
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # WhatsApp Endpoints
+  /whatsapp/webhook:
+    get:
+      tags:
+        - WhatsApp
+      summary: Webhook verification
+      description: Verifies the webhook during WhatsApp setup
+      parameters:
+        - name: hub.mode
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "subscribe"
+        - name: hub.challenge
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "1234567890"
+        - name: hub.verify_token
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "your_verify_token"
+      responses:
+        '200':
+          description: Webhook verified successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "1234567890"
+        '401':
+          description: Invalid verify token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - WhatsApp
+      summary: Receive WhatsApp messages
+      description: Processes incoming WhatsApp messages and executes business logic
+      parameters:
+        - name: x-hub-signature-256
+          in: header
+          description: WhatsApp signature for payload verification
+          schema:
+            type: string
+            example: "sha256=abc123..."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookPayload'
+            examples:
+              text_message:
+                summary: Text message
+                value:
+                  object: "whatsapp_business_account"
+                  entry:
+                    - id: "entry_id"
+                      changes:
+                        - value:
+                            messaging_product: "whatsapp"
+                            metadata:
+                              display_phone_number: "1234567890"
+                              phone_number_id: "phone_id"
+                            messages:
+                              - id: "msg_id"
+                                from: "221123456789"
+                                timestamp: "1640995200"
+                                text:
+                                  body: "vente 1000"
+                                type: "text"
+                          field: "messages"
+      responses:
+        '200':
+          description: Message processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Processed 1 messages"
+
+  /whatsapp/test:
+    post:
+      tags:
+        - WhatsApp
+      summary: Test message processing (Development only)
+      description: Test endpoint for simulating WhatsApp messages in development
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - from
+                - message
+              properties:
+                from:
+                  type: string
+                  example: "221123456789"
+                message:
+                  type: string
+                  example: "vente pain 1500"
+            examples:
+              sale:
+                summary: Sale command
+                value:
+                  from: "221123456789"
+                  message: "vente pain 1500"
+              expense:
+                summary: Expense command
+                value:
+                  from: "221123456789"
+                  message: "dépense 500 marchandise"
+              stock:
+                summary: Stock update
+                value:
+                  from: "221123456789"
+                  message: "stock pain 50"
+              balance:
+                summary: Balance request
+                value:
+                  from: "221123456789"
+                  message: "bilan jour"
+      responses:
+        '200':
+          description: Test message processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  result:
+                    type: object
+
+  # Health Endpoints
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Complete system health check
+      description: Returns comprehensive health status of all system components
+      responses:
+        '200':
+          description: System health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /health/ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness probe
+      description: Kubernetes readiness probe endpoint
+      responses:
+        '200':
+          description: System is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: boolean
+                    example: true
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /health/live:
+    get:
+      tags:
+        - Health
+      summary: Liveness probe
+      description: Kubernetes liveness probe endpoint
+      responses:
+        '200':
+          description: System is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alive:
+                    type: boolean
+                    example: true
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /health/metrics:
+    get:
+      tags:
+        - Health
+      summary: System metrics
+      description: Detailed system metrics for monitoring
+      responses:
+        '200':
+          description: System metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  timestamp:
+                    type: string
+                    format: date-time
+                  uptime:
+                    type: number
+                    example: 3600
+                  memory:
+                    type: object
+                    properties:
+                      rss:
+                        type: number
+                      heapTotal:
+                        type: number
+                      heapUsed:
+                        type: number
+                      external:
+                        type: number
+                  queue:
+                    type: object
+                    properties:
+                      queueSize:
+                        type: number
+                      processingCount:
+                        type: number
+                      isProcessing:
+                        type: boolean
+
+  /whatsapp/health:
+    get:
+      tags:
+        - Health
+      summary: WhatsApp service health
+      description: Health check specific to WhatsApp integration
+      responses:
+        '200':
+          description: WhatsApp service health
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                  timestamp:
+                    type: string
+                    format: date-time
+                  queue:
+                    type: object
+                  bot:
+                    type: object
+                  webhook:
+                    type: object
+
+  # Dashboard Endpoints
+  /dashboard/stats:
+    get:
+      tags:
+        - Dashboard
+      summary: Business statistics
+      description: Get business statistics for dashboard
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Business statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalSales:
+                    type: number
+                    example: 150000
+                  totalExpenses:
+                    type: number
+                    example: 75000
+                  netProfit:
+                    type: number
+                    example: 75000
+                  transactionCount:
+                    type: number
+                    example: 45
+                  period:
+                    type: string
+                    example: "month"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        phoneNumber:
+          type: string
+          example: "+221123456789"
+        businessId:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [owner, seller]
+          example: "owner"
+        language:
+          type: string
+          enum: [fr, wo]
+          example: "fr"
+        isActive:
+          type: boolean
+          example: true
+        business:
+          $ref: '#/components/schemas/Business'
+
+    Business:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Boutique Fatou"
+        currency:
+          type: string
+          example: "XOF"
+        timezone:
+          type: string
+          example: "Africa/Dakar"
+
+    WebhookPayload:
+      type: object
+      properties:
+        object:
+          type: string
+          example: "whatsapp_business_account"
+        entry:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              changes:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    value:
+                      type: object
+                      properties:
+                        messaging_product:
+                          type: string
+                          example: "whatsapp"
+                        metadata:
+                          type: object
+                          properties:
+                            display_phone_number:
+                              type: string
+                            phone_number_id:
+                              type: string
+                        messages:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                              from:
+                                type: string
+                              timestamp:
+                                type: string
+                              text:
+                                type: object
+                                properties:
+                                  body:
+                                    type: string
+                              type:
+                                type: string
+                                enum: [text, document, image, audio, video]
+                    field:
+                      type: string
+                      example: "messages"
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+          example: "1.0.0"
+        uptime:
+          type: number
+          example: 3600
+        components:
+          type: object
+          properties:
+            bot:
+              type: object
+              properties:
+                status:
+                  type: string
+                services:
+                  type: object
+                  properties:
+                    nlp:
+                      type: boolean
+                    auth:
+                      type: boolean
+                    transaction:
+                      type: boolean
+                    stock:
+                      type: boolean
+                    report:
+                      type: boolean
+                    whatsapp:
+                      type: boolean
+            whatsapp:
+              type: object
+              properties:
+                status:
+                  type: string
+                config:
+                  type: object
+                  properties:
+                    hasAccessToken:
+                      type: boolean
+                    hasPhoneNumberId:
+                      type: boolean
+                    hasWebhookToken:
+                      type: boolean
+            queue:
+              type: object
+              properties:
+                status:
+                  type: string
+                queueSize:
+                  type: number
+                processingCount:
+                  type: number
+                backlog:
+                  type: string
+                  enum: [normal, high]
+
+    ErrorResponse:
+      type: object
+      properties:
+        statusCode:
+          type: number
+          example: 400
+        message:
+          type: string
+          example: "Invalid request"
+        error:
+          type: string
+          example: "Bad Request"
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 401
+            message: "Unauthorized"
+            error: "Unauthorized"
+
+  examples:
+    SaleCommands:
+      summary: Sale command examples
+      value:
+        - "vente 1000"
+        - "vente pain 1500"
+        - "j'ai vendu du pain à 2000"
+        - "sale 1000"
+
+    ExpenseCommands:
+      summary: Expense command examples
+      value:
+        - "dépense 500"
+        - "dépense 500 marchandise"
+        - "j'ai acheté du sucre à 1000"
+        - "expense 500"
+
+    StockCommands:
+      summary: Stock command examples
+      value:
+        - "stock pain 50"
+        - "stock pain"
+        - "stock"
+        - "maj stock pain 25"
+
+    ReportCommands:
+      summary: Report command examples
+      value:
+        - "bilan jour"
+        - "bilan semaine"
+        - "bilan mois"
+        - "rapport PDF"

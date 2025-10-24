@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { User, UserRole } from './entities/user.entity';
 import { Business } from './entities/business.entity';
 import { OtpSession } from './entities/otp-session.entity';
+import { PhoneValidationService } from './services/phone-validation.service';
 
 export interface SendOtpDto {
   phoneNumber: string;
@@ -22,6 +23,21 @@ export interface RegisterUserDto {
   businessName: string;
   role: UserRole;
   language?: string;
+}
+
+export interface BusinessCreationRequest {
+  phoneNumber: string;
+  businessName: string;
+  ownerName: string;
+  country?: string;
+  language?: string;
+}
+
+export interface BusinessCreationResult {
+  business: Business;
+  owner: User;
+  businessCode: string;
+  accessToken: string;
 }
 
 export interface JwtPayload {
@@ -54,6 +70,7 @@ export class AuthService {
     private readonly otpSessionRepository: Repository<OtpSession>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly phoneValidationService: PhoneValidationService,
   ) { }
 
   /**
@@ -145,7 +162,111 @@ export class AuthService {
   }
 
   /**
+   * Register a new business owner with generated business code
+   */
+  async registerBusinessOwner(registerDto: RegisterUserDto): Promise<AuthResult> {
+    const cleanPhoneNumber = this.cleanPhoneNumber(registerDto.phoneNumber);
+
+    // Check if user already exists
+    const existingUser = await this.getUserByPhone(cleanPhoneNumber);
+    if (existingUser) {
+      throw new ConflictException('User with this phone number already exists.');
+    }
+
+    // Generate unique business code
+    const businessCode = await this.generateBusinessCode();
+
+    // Create business with generated code
+    const business = this.businessRepository.create({
+      name: registerDto.businessName,
+      businessCode,
+      currency: 'XOF', // Default currency for West Africa
+      timezone: 'Africa/Dakar', // Default timezone
+    });
+    const savedBusiness = await this.businessRepository.save(business);
+
+    // Create owner user
+    const user = this.userRepository.create({
+      phoneNumber: cleanPhoneNumber,
+      businessId: savedBusiness.id,
+      role: UserRole.OWNER,
+      language: registerDto.language || 'fr',
+      isActive: true,
+      joinedAt: new Date(),
+    });
+
+    const savedUser = await this.userRepository.save(user);
+
+    // Generate JWT token for immediate authentication
+    const accessToken = await this.generateJwtToken(savedUser);
+
+    // Return the user with business relation loaded
+    const userWithBusiness = await this.getUserByPhone(cleanPhoneNumber);
+
+    return {
+      user: userWithBusiness!,
+      accessToken,
+    };
+  }
+
+  /**
+   * Register a new employee with business code validation
+   */
+  async registerEmployee(
+    phoneNumber: string, 
+    businessCode: string, 
+    employeeName: string, 
+    role: 'seller' | 'manager', 
+    language?: string
+  ): Promise<AuthResult> {
+    const cleanPhoneNumber = this.cleanPhoneNumber(phoneNumber);
+
+    // Check if user already exists
+    const existingUser = await this.getUserByPhone(cleanPhoneNumber);
+    if (existingUser) {
+      throw new ConflictException('User with this phone number already exists.');
+    }
+
+    // Validate business code exists
+    const business = await this.businessRepository.findOne({
+      where: { businessCode: businessCode.toUpperCase() }
+    });
+
+    if (!business) {
+      throw new BadRequestException('Invalid business code. Please verify with your employer.');
+    }
+
+    // Map role string to UserRole enum
+    const userRole = role === 'manager' ? UserRole.MANAGER : UserRole.SELLER;
+
+    // Create employee user
+    const user = this.userRepository.create({
+      phoneNumber: cleanPhoneNumber,
+      employeeName,
+      businessId: business.id,
+      role: userRole,
+      language: language || 'fr',
+      isActive: true,
+      joinedAt: new Date(),
+    });
+
+    const savedUser = await this.userRepository.save(user);
+
+    // Generate JWT token for immediate authentication
+    const accessToken = await this.generateJwtToken(savedUser);
+
+    // Return the user with business relation loaded
+    const userWithBusiness = await this.getUserByPhone(cleanPhoneNumber);
+
+    return {
+      user: userWithBusiness!,
+      accessToken,
+    };
+  }
+
+  /**
    * Register a new user with business and return authentication result
+   * @deprecated Use registerBusinessOwner for business owners
    */
   async registerUser(registerDto: RegisterUserDto): Promise<AuthResult> {
     const cleanPhoneNumber = this.cleanPhoneNumber(registerDto.phoneNumber);
@@ -210,6 +331,30 @@ export class AuthService {
   }
 
   /**
+   * Get business by business code with employee count
+   */
+  async getBusinessByCode(businessCode: string): Promise<{ business: Business; employeeCount: number } | null> {
+    const business = await this.businessRepository.findOne({
+      where: { businessCode: businessCode.toUpperCase() },
+      relations: ['users']
+    });
+
+    if (!business) {
+      return null;
+    }
+
+    // Count active employees (excluding owners)
+    const employeeCount = business.users.filter(user => 
+      user.isActive && user.role !== UserRole.OWNER
+    ).length;
+
+    return {
+      business,
+      employeeCount
+    };
+  }
+
+  /**
    * Check if user has permission for a specific action
    */
   async hasPermission(userId: string, action: string): Promise<boolean> {
@@ -228,7 +373,16 @@ export class AuthService {
         'manage_stock',
         'view_balance',
         'generate_pdf',
-        'manage_users'
+        'manage_users',
+        'view_business_code'
+      ],
+      [UserRole.MANAGER]: [
+        'create_sale',
+        'create_expense',
+        'view_reports',
+        'manage_stock',
+        'view_balance',
+        'generate_pdf'
       ],
       [UserRole.SELLER]: [
         'create_sale',
@@ -261,7 +415,7 @@ export class AuthService {
   /**
    * Generate JWT token for user
    */
-  private async generateJwtToken(user: User): Promise<string> {
+  async generateJwtToken(user: User): Promise<string> {
     const payload: JwtPayload = {
       sub: user.id,
       phoneNumber: user.phoneNumber,
@@ -331,15 +485,141 @@ export class AuthService {
   }
 
   /**
+   * Create business with owner - main method for merchant onboarding
+   */
+  async createBusinessWithOwner(request: BusinessCreationRequest): Promise<BusinessCreationResult> {
+    const cleanPhoneNumber = this.cleanPhoneNumber(request.phoneNumber);
+
+    // Check if user already exists
+    const existingUser = await this.getUserByPhone(cleanPhoneNumber);
+    if (existingUser) {
+      throw new ConflictException('User with this phone number already exists.');
+    }
+
+    // Validate business name uniqueness
+    await this.validateBusinessNameUniqueness(request.businessName);
+
+    // Extract country from phone number if not provided
+    let country = request.country;
+    if (!country) {
+      const phoneValidation = await this.phoneValidationService.extractCountryFromWhatsApp(cleanPhoneNumber);
+      if (phoneValidation.isValid) {
+        country = phoneValidation.country;
+      } else {
+        throw new BadRequestException('Unable to extract country from phone number. Please provide country manually.');
+      }
+    }
+
+    // Generate unique business code
+    const businessCode = await this.generateBusinessCode();
+
+    // Create business with owner information
+    const business = this.businessRepository.create({
+      name: request.businessName.trim(),
+      businessCode,
+      currency: 'XOF', // Default currency for West Africa
+      timezone: 'Africa/Dakar', // Default timezone
+      ownerName: request.ownerName.trim(),
+      country: country,
+    });
+    const savedBusiness = await this.businessRepository.save(business);
+
+    // Create owner user with extracted country
+    const owner = this.userRepository.create({
+      phoneNumber: cleanPhoneNumber,
+      employeeName: request.ownerName.trim(),
+      businessId: savedBusiness.id,
+      role: UserRole.OWNER,
+      language: request.language || 'fr',
+      isActive: true,
+      joinedAt: new Date(),
+    });
+
+    const savedOwner = await this.userRepository.save(owner);
+
+    // Generate JWT token for immediate authentication
+    const accessToken = await this.generateJwtToken(savedOwner);
+
+    // Return the complete result with business relation loaded
+    const ownerWithBusiness = await this.getUserByPhone(cleanPhoneNumber);
+
+    return {
+      business: savedBusiness,
+      owner: ownerWithBusiness!,
+      businessCode,
+      accessToken,
+    };
+  }
+
+  /**
+   * Validate business name uniqueness
+   */
+  async validateBusinessNameUniqueness(businessName: string): Promise<void> {
+    if (!businessName || businessName.trim().length === 0) {
+      throw new BadRequestException('Business name cannot be empty.');
+    }
+
+    const trimmedName = businessName.trim();
+    
+    if (trimmedName.length < 2) {
+      throw new BadRequestException('Business name must be at least 2 characters long.');
+    }
+
+    if (trimmedName.length > 100) {
+      throw new BadRequestException('Business name cannot exceed 100 characters.');
+    }
+
+    // Check for uniqueness (case-insensitive)
+    const existingBusiness = await this.businessRepository
+      .createQueryBuilder('business')
+      .where('LOWER(business.name) = LOWER(:name)', { name: trimmedName })
+      .getOne();
+
+    if (existingBusiness) {
+      throw new ConflictException('A business with this name already exists. Please choose a different name.');
+    }
+  }
+
+  /**
+   * Generate unique business code
+   * Generates a 6-character alphanumeric code excluding confusing characters (0/O, 1/I/L)
+   */
+  async generateBusinessCode(): Promise<string> {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // Excludes 0, O, 1, I, L
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    while (attempts < maxAttempts) {
+      let code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+
+      // Check if code already exists
+      const existingBusiness = await this.businessRepository.findOne({
+        where: { businessCode: code }
+      });
+
+      if (!existingBusiness) {
+        return code;
+      }
+
+      attempts++;
+    }
+
+    throw new Error('Unable to generate unique business code after maximum attempts');
+  }
+
+  /**
    * Clean and format phone number
    */
   private cleanPhoneNumber(phoneNumber: string): string {
     // Remove all non-digit characters
     const cleaned = phoneNumber.replace(/\D/g, '');
 
-    // Add country code if missing (assuming West Africa +221 for Senegal)
-    if (cleaned.length === 9 && !cleaned.startsWith('221')) {
-      return '+221' + cleaned;
+    // Add country code if missing (assuming West Africa +226 for Burkina)
+    if (cleaned.length === 9 && !cleaned.startsWith('226')) {
+      return '+226' + cleaned;
     }
 
     if (cleaned.length >= 10 && !cleaned.startsWith('+')) {

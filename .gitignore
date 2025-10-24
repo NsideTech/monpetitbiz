@@ -1,0 +1,144 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+.env.test
+.env.production
+.env.local
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# next.js build output
+.next
+
+# nuxt.js build output
+.nuxt
+
+# vuepress build output
+.vuepress/dist
+
+# Serverless directories
+.serverless
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Compiled output
+/dist
+/tmp
+/out-tsc
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Logs
+logs
+*.log
+
+# Database
+*.sqlite
+*.db
+
+# SSL Certificates (for security)
+ssl/
+*.pem
+*.key
+*.crt
+*.csr
+
+# Development and test files
+test-*.js
+debug-*.js
+*-test.js
+*-debug.js
+cleanup-*.js
+optimize-*.js
+quick-*.js
+
+# Temporary simulators (keep whatsapp-offline-simulator.html)
+whatsapp-hybrid-simulator.html
+sandbox-vs-production-visual.html
+whatsapp-pricing-visual.html
+
+# Temporary launch scripts (keep launch-simulator.sh)
+launch-all-simulators.sh
+launch-offline-simulator.sh
+
+# Development documentation
+*-EXPLAINED.md
+*-GUIDE.md
+DIAGNOSTIC-*.md
+MIGRATION-*.md
+SANDBOX-*.md
+TWILIO-*.md
+WHATSAPP-*.md
+
+# Temporary files
+.twilio-message-count.json
+*.tmp
+*.temp
+
+# Backup files
+*.bak
+*.backup

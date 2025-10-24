@@ -12,6 +12,9 @@ npm install
 
 # 2. Quick start (handles everything)
 npm run quick-start
+
+# 3. Optional: Dedicated Twilio setup help
+npm run setup-twilio
 ```
 
 ## 🔧 Manual Setup
@@ -95,22 +98,105 @@ curl http://localhost:3000/health
 
 Required for basic functionality:
 ```env
+# Database
 DATABASE_NAME=monpetitbiz
 DATABASE_HOST=localhost
 DATABASE_PORT=5432
 DATABASE_USERNAME=postgres
 DATABASE_PASSWORD=your_password
-JWT_SECRET=your-secret-key
+
+# Authentication
+JWT_SECRET=your-secret-key-min-32-characters
+
+# Twilio WhatsApp (Primary)
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
 ```
 
-Optional for full functionality:
+Optional for enhanced functionality:
 ```env
+# Twilio Optional
+TWILIO_WEBHOOK_SECRET=your_webhook_secret
+TWILIO_ENVIRONMENT=production
+TWILIO_RETRY_ATTEMPTS=3
+TWILIO_TIMEOUT=30000
+
+# Legacy WhatsApp (Meta API - for backward compatibility)
 WHATSAPP_ACCESS_TOKEN=your_token
 WHATSAPP_PHONE_NUMBER_ID=your_phone_id
 WHATSAPP_WEBHOOK_VERIFY_TOKEN=your_verify_token
+
+# AWS (for PDF reports)
 AWS_ACCESS_KEY_ID=your_aws_key
 AWS_SECRET_ACCESS_KEY=your_aws_secret
 ```
+
+## 📱 Twilio WhatsApp Setup
+
+### Quick Twilio Setup
+```bash
+# Get help with Twilio configuration
+npm run setup-twilio
+```
+
+### Manual Twilio Setup
+
+1. **Create Twilio Account**
+   - Visit [Twilio Console](https://console.twilio.com/)
+   - Sign up for free account ($15 credit included)
+
+2. **Get Credentials**
+   - Account SID: Dashboard → Account Info
+   - Auth Token: Dashboard → Account Info (click "Show")
+
+3. **Choose Setup Type**
+
+   **🧪 Sandbox (Testing)**
+   ```env
+   TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
+   TWILIO_ENVIRONMENT=sandbox
+   ```
+   
+   **🏢 Production (Live Business)**
+   ```env
+   TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_WHATSAPP_NUMBER=whatsapp:+1234567890
+   TWILIO_ENVIRONMENT=production
+   TWILIO_WEBHOOK_SECRET=your_webhook_secret
+   ```
+
+4. **Configure Webhooks**
+   
+   **Local Development:**
+   ```bash
+   # Terminal 1: Start app
+   npm run start:dev
+   
+   # Terminal 2: Expose with ngrok
+   ngrok http 3000
+   ```
+   
+   Then in Twilio Console → WhatsApp → Sandbox:
+   - Webhook URL: `https://abc123.ngrok.io/whatsapp/twilio/webhook`
+   
+   **Production:**
+   - Webhook URL: `https://yourdomain.com/whatsapp/twilio/webhook`
+
+5. **Test Connection**
+   - Sandbox: Send `join <sandbox-name>` to +1 415 523 8886
+   - Test command: `vente 1000`
+
+### Webhook Endpoints
+
+The application provides multiple webhook endpoints:
+
+- **Twilio (Primary)**: `/whatsapp/twilio/webhook`
+- **Meta API (Legacy)**: `/whatsapp/webhook`
+- **Health Check**: `/health`
 
 ## 📱 WhatsApp Commands
 

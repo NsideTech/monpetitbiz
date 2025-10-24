@@ -158,6 +158,7 @@ export class WebhookSecurityService {
   validatePhoneNumberId(payload: any): boolean {
     try {
       const expectedPhoneNumberId = this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID');
+      this.logger.log('expectedPhoneNumberId', expectedPhoneNumberId);
       
       if (!expectedPhoneNumberId) {
         this.logger.warn('WHATSAPP_PHONE_NUMBER_ID not configured - skipping validation');

@@ -3,6 +3,9 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { BotController } from './bot.controller';
 import { WhatsappService } from './whatsapp.service';
 import { MessageQueueService } from './services/message-queue.service';
+import { TwilioWhatsAppService } from './services/twilio-whatsapp.service';
+import { TwilioConfigService } from '../../config/twilio.config';
+import { TwilioLoggerService } from './services/twilio-logger.service';
 
 @ApiTags('Health')
 @Controller('health')
@@ -11,7 +14,51 @@ export class HealthController {
     private readonly botController: BotController,
     private readonly whatsappService: WhatsappService,
     private readonly messageQueueService: MessageQueueService,
+    private readonly twilioWhatsAppService: TwilioWhatsAppService,
+    private readonly twilioConfig: TwilioConfigService,
+    private readonly twilioLogger: TwilioLoggerService,
   ) {}
+
+  /**
+   * Validate Twilio configuration
+   */
+  private validateTwilioConfiguration(): { valid: boolean; errors: string[] } {
+    const correlationId = this.twilioLogger.generateCorrelationId();
+    const errors: string[] = [];
+    
+    try {
+      const config = this.twilioConfig.getTwilioConfig();
+      
+      if (!config.accountSid) {
+        errors.push('TWILIO_ACCOUNT_SID is missing');
+      } else if (!config.accountSid.startsWith('AC')) {
+        errors.push('TWILIO_ACCOUNT_SID format is invalid (should start with AC)');
+      }
+      
+      if (!config.authToken) {
+        errors.push('TWILIO_AUTH_TOKEN is missing');
+      } else if (config.authToken.length < 32) {
+        errors.push('TWILIO_AUTH_TOKEN appears to be invalid (too short)');
+      }
+      
+      if (!config.whatsappNumber) {
+        errors.push('TWILIO_WHATSAPP_NUMBER is missing');
+      } else if (!config.whatsappNumber.startsWith('+')) {
+        errors.push('TWILIO_WHATSAPP_NUMBER should be in E.164 format (start with +)');
+      }
+      
+      const valid = errors.length === 0;
+      
+      // Log configuration validation result
+      this.twilioLogger.logConfigurationValidation(correlationId, valid, errors);
+      
+      return { valid, errors };
+    } catch (error) {
+      errors.push(`Configuration validation failed: ${error.message}`);
+      this.twilioLogger.logConfigurationValidation(correlationId, false, errors);
+      return { valid: false, errors };
+    }
+  }
 
   /**
    * Comprehensive system health check
@@ -89,6 +136,7 @@ export class HealthController {
     components: {
       bot: any;
       whatsapp: any;
+      twilio: any;
       queue: any;
       database: any;
     };
@@ -99,6 +147,33 @@ export class HealthController {
     const botHealth = await this.botController.healthCheck();
     const webhookConfig = this.whatsappService.getWebhookConfig();
     const queueStats = this.messageQueueService.getQueueStats();
+    
+    // Check Twilio configuration and connectivity
+    const twilioConfigValidation = this.validateTwilioConfiguration();
+    let twilioHealth = { healthy: false, details: {}, correlationId: '' };
+    
+    if (twilioConfigValidation.valid) {
+      try {
+        const healthResult = await this.twilioWhatsAppService.checkHealth();
+        twilioHealth = {
+          healthy: healthResult.healthy,
+          details: healthResult.details || {},
+          correlationId: healthResult.correlationId
+        };
+      } catch (error) {
+        twilioHealth = {
+          healthy: false,
+          details: { error: error.message },
+          correlationId: this.twilioLogger.generateCorrelationId()
+        };
+      }
+    } else {
+      twilioHealth = {
+        healthy: false,
+        details: { configErrors: twilioConfigValidation.errors },
+        correlationId: this.twilioLogger.generateCorrelationId()
+      };
+    }
     
     // Test database connectivity (basic check)
     let databaseHealth = { status: 'healthy', connected: true };
@@ -113,6 +188,7 @@ export class HealthController {
     const componentStatuses = [
       botHealth.status,
       Object.values(webhookConfig).every(Boolean) ? 'healthy' : 'degraded',
+      twilioHealth.healthy ? 'healthy' : 'unhealthy',
       queueStats.queueSize < 100 ? 'healthy' : 'degraded', // Queue not too backed up
       databaseHealth.status
     ];
@@ -141,6 +217,16 @@ export class HealthController {
           config: webhookConfig,
           api: 'connected' // Assume connected if config is valid
         },
+        twilio: {
+          status: twilioHealth.healthy ? 'healthy' : 'unhealthy',
+          healthy: twilioHealth.healthy,
+          correlationId: twilioHealth.correlationId,
+          configuration: {
+            valid: twilioConfigValidation.valid,
+            errors: twilioConfigValidation.errors
+          },
+          connectivity: twilioHealth.details
+        },
         queue: {
           status: queueStats.queueSize < 100 ? 'healthy' : 'degraded',
           ...queueStats,
@@ -157,18 +243,39 @@ export class HealthController {
    */
   @Get('ready')
   @HttpCode(HttpStatus.OK)
-  async readinessCheck(): Promise<{ ready: boolean; timestamp: string }> {
+  async readinessCheck(): Promise<{ ready: boolean; timestamp: string; details?: any }> {
     try {
       // Check if all critical services are ready
       const botHealth = await this.botController.healthCheck();
       const webhookConfig = this.whatsappService.getWebhookConfig();
+      const twilioConfigValidation = this.validateTwilioConfiguration();
+      
+      let twilioReady = false;
+      if (twilioConfigValidation.valid) {
+        try {
+          const twilioHealth = await this.twilioWhatsAppService.checkHealth();
+          twilioReady = twilioHealth.healthy;
+        } catch (error) {
+          twilioReady = false;
+        }
+      }
       
       const isReady = botHealth.status !== 'unhealthy' && 
                      webhookConfig.hasAccessToken && 
-                     webhookConfig.hasPhoneNumberId;
+                     webhookConfig.hasPhoneNumberId &&
+                     twilioReady;
 
       if (!isReady) {
-        throw new Error('System not ready');
+        return {
+          ready: false,
+          timestamp: new Date().toISOString(),
+          details: {
+            bot: botHealth.status !== 'unhealthy',
+            whatsapp: webhookConfig.hasAccessToken && webhookConfig.hasPhoneNumberId,
+            twilio: twilioReady,
+            twilioConfig: twilioConfigValidation.valid
+          }
+        };
       }
 
       return {
@@ -178,7 +285,8 @@ export class HealthController {
     } catch (error) {
       return {
         ready: false,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        details: { error: error.message }
       };
     }
   }
@@ -198,6 +306,90 @@ export class HealthController {
   }
 
   /**
+   * Dedicated Twilio health check
+   * GET /health/twilio
+   */
+  @Get('twilio')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Twilio service health check',
+    description: 'Returns detailed health status of Twilio integration including configuration validation and connectivity test.'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Twilio service health status',
+    schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['healthy', 'unhealthy'] },
+        timestamp: { type: 'string', format: 'date-time' },
+        correlationId: { type: 'string' },
+        configuration: {
+          type: 'object',
+          properties: {
+            valid: { type: 'boolean' },
+            errors: { type: 'array', items: { type: 'string' } }
+          }
+        },
+        connectivity: {
+          type: 'object',
+          properties: {
+            healthy: { type: 'boolean' },
+            details: { type: 'object' }
+          }
+        }
+      }
+    }
+  })
+  async twilioHealthCheck(): Promise<{
+    status: 'healthy' | 'unhealthy';
+    timestamp: string;
+    correlationId: string;
+    configuration: { valid: boolean; errors: string[] };
+    connectivity: { healthy: boolean; details: any };
+  }> {
+    const timestamp = new Date().toISOString();
+    
+    // Validate configuration
+    const configValidation = this.validateTwilioConfiguration();
+    
+    // Test connectivity if configuration is valid
+    let connectivityResult = { healthy: false, details: {}, correlationId: '' };
+    
+    if (configValidation.valid) {
+      try {
+        const healthResult = await this.twilioWhatsAppService.checkHealth();
+        connectivityResult = {
+          healthy: healthResult.healthy,
+          details: healthResult.details || {},
+          correlationId: healthResult.correlationId
+        };
+      } catch (error) {
+        connectivityResult = {
+          healthy: false,
+          details: { error: error.message },
+          correlationId: this.twilioLogger.generateCorrelationId()
+        };
+      }
+    } else {
+      connectivityResult.correlationId = this.twilioLogger.generateCorrelationId();
+    }
+    
+    const overallHealthy = configValidation.valid && connectivityResult.healthy;
+    
+    return {
+      status: overallHealthy ? 'healthy' : 'unhealthy',
+      timestamp,
+      correlationId: connectivityResult.correlationId,
+      configuration: configValidation,
+      connectivity: {
+        healthy: connectivityResult.healthy,
+        details: connectivityResult.details
+      }
+    };
+  }
+
+  /**
    * Detailed metrics for monitoring systems
    * GET /health/metrics
    */
@@ -208,6 +400,7 @@ export class HealthController {
     uptime: number;
     memory: NodeJS.MemoryUsage;
     queue: any;
+    twilio: any;
     process: {
       pid: number;
       version: string;
@@ -217,11 +410,38 @@ export class HealthController {
   }> {
     const queueStats = this.messageQueueService.getQueueStats();
     
+    // Get Twilio metrics
+    const twilioConfigValidation = this.validateTwilioConfiguration();
+    let twilioMetrics = {
+      configurationValid: twilioConfigValidation.valid,
+      configurationErrors: twilioConfigValidation.errors,
+      connectivity: 'unknown',
+      lastHealthCheck: null
+    };
+    
+    if (twilioConfigValidation.valid) {
+      try {
+        const healthCheck = await this.twilioWhatsAppService.checkHealth();
+        twilioMetrics = {
+          ...twilioMetrics,
+          connectivity: healthCheck.healthy ? 'healthy' : 'unhealthy',
+          lastHealthCheck: new Date().toISOString()
+        };
+      } catch (error) {
+        twilioMetrics = {
+          ...twilioMetrics,
+          connectivity: 'error',
+          lastHealthCheck: new Date().toISOString()
+        };
+      }
+    }
+    
     return {
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       memory: process.memoryUsage(),
       queue: queueStats,
+      twilio: twilioMetrics,
       process: {
         pid: process.pid,
         version: process.version,

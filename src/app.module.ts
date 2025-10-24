@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { getDatabaseConfig } from './config/database.config';
+import { ConfigurationValidatorService } from './config/configuration-validator.service';
+import { TwilioConfigService } from './config/twilio.config';
 
 // Import controllers
 import { AppController } from './app.controller';
@@ -42,5 +44,9 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     DashboardModule,
   ],
   controllers: [AppController],
+  providers: [
+    ConfigurationValidatorService,
+    TwilioConfigService,
+  ],
 })
 export class AppModule {}

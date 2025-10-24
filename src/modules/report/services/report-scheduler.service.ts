@@ -83,10 +83,10 @@ export class ReportSchedulerService {
         return;
       }
 
-      // Format and send the report to each owner
+      // Format and send the report to each owner (using Twilio by default)
       for (const owner of owners) {
         const message = this.formatDailyReportMessage(report, business, owner.language);
-        await this.whatsappService.sendMessage(owner.phoneNumber, message);
+        await this.whatsappService.sendMessage(owner.phoneNumber, message, 'twilio');
         
         this.logger.log(`Daily report sent to ${owner.phoneNumber} for business ${business.id}`);
       }

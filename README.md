@@ -8,6 +8,9 @@ A WhatsApp bot designed for micro-businesses in the informal sector in Africa to
 - **📱 Natural Language Processing**: Record sales and expenses using everyday language in French and local languages
 - **📊 Transaction Management**: Automatic recording of sales and expenses with validation
 - **📦 Inventory Tracking**: Real-time stock management with low-stock alerts
+- **💰 Price Management**: Set and manage unit prices for products with automatic calculation
+- **🛍️ Smart Sales**: Intelligent sales recording with automatic price calculation based on quantity
+- **📋 Product Catalog**: Complete product listing with stock levels and pricing information
 - **📈 Financial Reports**: Generate daily, weekly, and monthly business reports
 - **📄 PDF Generation**: Automated PDF report generation and delivery via WhatsApp
 - **🔐 Authentication**: Secure OTP-based authentication system
@@ -25,7 +28,7 @@ A WhatsApp bot designed for micro-businesses in the informal sector in Africa to
 - **Backend**: NestJS (Node.js + TypeScript)
 - **Database**: PostgreSQL with TypeORM
 - **File Storage**: AWS S3 (for PDF reports)
-- **WhatsApp**: Meta Cloud API
+- **WhatsApp**: Twilio Programmable Messaging SDK (with Meta API fallback)
 - **Frontend**: Next.js (for dashboard)
 - **Authentication**: JWT + OTP
 - **Testing**: Jest with comprehensive test coverage
@@ -38,7 +41,8 @@ Before you begin, ensure you have the following installed:
 - **Node.js** 18+ ([Download](https://nodejs.org/))
 - **PostgreSQL** 13+ ([Download](https://www.postgresql.org/download/))
 - **npm** or **yarn** package manager
-- **WhatsApp Business Account** ([Setup Guide](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started))
+- **Twilio Account** ([Setup Guide](https://console.twilio.com/)) - Primary WhatsApp provider
+- **WhatsApp Business Account** (Optional - for Meta API fallback)
 - **AWS Account** (for S3 storage - optional for development)
 
 ## 🚀 Quick Start
@@ -75,11 +79,17 @@ DATABASE_NAME=monpetitbiz
 JWT_SECRET=your-super-secret-jwt-key
 JWT_EXPIRES_IN=7d
 
-# WhatsApp Configuration
-WHATSAPP_ACCESS_TOKEN=your_whatsapp_access_token
-WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
-WHATSAPP_WEBHOOK_VERIFY_TOKEN=your_webhook_verify_token
-WHATSAPP_APP_SECRET=your_app_secret
+# Twilio Configuration (Primary WhatsApp Provider)
+TWILIO_ACCOUNT_SID=your_twilio_account_sid
+TWILIO_AUTH_TOKEN=your_twilio_auth_token
+TWILIO_WHATSAPP_NUMBER=whatsapp:+1234567890
+TWILIO_WEBHOOK_SECRET=your_twilio_webhook_secret
+
+# WhatsApp Configuration (Optional - Meta API Fallback)
+# WHATSAPP_ACCESS_TOKEN=your_whatsapp_access_token
+# WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+# WHATSAPP_WEBHOOK_VERIFY_TOKEN=your_webhook_verify_token
+# WHATSAPP_APP_SECRET=your_app_secret
 
 # AWS Configuration (Optional for development)
 AWS_ACCESS_KEY_ID=your_aws_access_key
@@ -150,16 +160,47 @@ curl http://localhost:3000/health
 
 1. **Registration**: Users register by sending their business information
 2. **Authentication**: OTP-based authentication via WhatsApp
-3. **Business Operations**: Users interact with the bot using natural language
-4. **Automated Reports**: Daily reports sent automatically at 8 PM
+3. **Product Setup**: Set up products and their unit prices
+4. **Business Operations**: Users interact with the bot using natural language
+5. **Smart Calculations**: Automatic price calculations based on quantity and unit prices
+6. **Automated Reports**: Daily reports sent automatically at 8 PM
+
+### 🆕 New Features: Smart Price Management
+
+#### Automatic Price Calculation
+The bot now supports intelligent price calculations:
+
+- **Set Unit Prices**: `prix pain 300` sets bread price to 300 CFA per unit
+- **Quantity Sales**: `vente 10 pain` automatically calculates total (10 × 300 = 3000 CFA)
+- **Product Catalog**: `produits` shows all products with stock levels and prices
+- **Flexible Sales**: Mix automatic and custom pricing as needed
+
+#### Example Workflow
+```
+User: prix pain 250
+Bot: ✅ Prix défini: pain = 250 CFA/unité
+
+User: prix lait 500  
+Bot: ✅ Prix défini: lait = 500 CFA/unité
+
+User: produits
+Bot: 📋 LISTE DES PRODUITS:
+     • pain: 📦 50 unités, 💰 250 CFA/unité
+     • lait: 📦 20 unités, 💰 500 CFA/unité
+
+User: vente 5 pain
+Bot: ✅ Vente enregistrée: 5 pain pour 1250 CFA (250 CFA/unité)
+     📊 Stock restant: 45 unités
+```
 
 ### Supported Commands
 
 #### Sales Recording
 ```
-vente 1000
-vente pain 1500
-j'ai vendu du pain à 2000
+vente 1000                    # Simple sale amount
+vente pain 1500              # Product with custom price
+vente 10 pain 2500           # Quantity + product + total amount
+j'ai vendu du pain à 2000    # Natural language
 ```
 
 #### Expense Recording
@@ -176,6 +217,21 @@ stock pain          # Check stock for specific product
 stock              # Check all stock
 ```
 
+#### Product & Price Management
+```
+produits            # List all products with stock and prices
+prix pain 300       # Set unit price for bread to 300 CFA
+prix lait 500       # Set unit price for milk to 500 CFA
+```
+
+#### Smart Sales (with automatic calculation)
+```
+vente pain          # Sell 1 bread at unit price
+vente 10 pain       # Sell 10 breads (auto-calculated: 10 × unit price)
+vente pain 500      # Sell bread for custom price (500 CFA)
+vente 10 pain 2500  # Sell 10 breads for total 2500 CFA
+```
+
 #### Reports
 ```
 bilan jour         # Daily balance
@@ -186,13 +242,15 @@ rapport PDF        # Generate PDF report
 
 ### Message Processing Flow
 
-1. **Webhook Reception**: WhatsApp sends message to `/whatsapp/webhook`
+1. **Webhook Reception**: Twilio sends message to `/whatsapp/twilio/webhook`
 2. **Message Parsing**: Extract and validate message content
 3. **Queue Processing**: Add message to processing queue
 4. **NLP Analysis**: Analyze message intent and extract data
-5. **Authentication**: Verify user permissions
-6. **Business Logic**: Execute appropriate business operation
-7. **Response**: Send confirmation back to user
+5. **Price Calculation**: Automatic price calculation for quantity-based sales
+6. **Authentication**: Verify user permissions
+7. **Business Logic**: Execute appropriate business operation
+8. **Stock Updates**: Automatic stock decrement and price management
+9. **Response**: Send confirmation back to user
 
 ## 🔧 Development
 
@@ -218,6 +276,9 @@ npm run migration:generate # Generate new migration
 npm run migration:run      # Run pending migrations
 npm run migration:revert   # Revert last migration
 
+# Note: After updating to include price management features,
+# run the migration to add unit_price column to stock_items table
+
 # Code Quality
 npm run lint              # Run ESLint
 npm run format            # Format code with Prettier
@@ -225,7 +286,7 @@ npm run format            # Format code with Prettier
 
 ### Testing the WhatsApp Integration
 
-1. **Webhook Setup**: Configure your WhatsApp webhook URL to point to your server
+1. **Webhook Setup**: Configure your Twilio webhook URL to point to your server
 2. **Ngrok for Local Development**:
    ```bash
    # Install ngrok
@@ -234,10 +295,11 @@ npm run format            # Format code with Prettier
    # Expose local server
    ngrok http 3000
    
-   # Use the ngrok URL for WhatsApp webhook
+   # Use the ngrok URL for Twilio webhook
+   # Example: https://abc123.ngrok.io/whatsapp/twilio/webhook
    ```
 
-3. **Test Messages**: Send test messages to your WhatsApp Business number
+3. **Test Messages**: Send test messages to your Twilio WhatsApp number
 
 ### API Testing
 
@@ -265,8 +327,9 @@ src/
 │   │   ├── entities/         # Transaction entity
 │   │   └── transaction.service.ts # Transaction logic
 │   ├── stock/               # Inventory management
-│   │   ├── entities/        # StockItem entity
-│   │   └── stock.service.ts # Stock operations
+│   │   ├── entities/        # StockItem entity (with unit prices)
+│   │   ├── services/        # Product normalizer service
+│   │   └── stock.service.ts # Stock operations & price management
 │   ├── report/              # Report generation
 │   │   ├── services/        # PDF generation
 │   │   └── report.service.ts # Report logic
@@ -326,6 +389,8 @@ The application provides comprehensive monitoring endpoints:
 
 ## 🐛 Troubleshooting
 
+For comprehensive troubleshooting information, see the [Twilio Troubleshooting Guide](docs/twilio-troubleshooting-guide.md).
+
 ### Common Issues
 
 1. **Database Connection Failed**
@@ -345,8 +410,9 @@ The application provides comprehensive monitoring endpoints:
 
 2. **WhatsApp Webhook Not Receiving Messages**
    - Verify webhook URL is accessible from internet
-   - Check WHATSAPP_WEBHOOK_VERIFY_TOKEN matches Meta configuration
+   - Check TWILIO_WEBHOOK_SECRET matches Twilio Console configuration
    - Ensure webhook endpoint returns 200 status
+   - For Meta fallback: Check WHATSAPP_WEBHOOK_VERIFY_TOKEN matches Meta configuration
 
 3. **PDF Generation Fails**
    - Verify AWS credentials are configured
@@ -357,6 +423,11 @@ The application provides comprehensive monitoring endpoints:
    - Check queue status at `/whatsapp/health`
    - Review application logs for errors
    - Restart the application if needed
+
+5. **Price Management Issues**
+   - Ensure database migration has been run: `npm run migration:run`
+   - Verify `unit_price` column exists in `stock_items` table
+   - Check that products have been created with `prix [product] [amount]` command
 
 ### Logs
 
@@ -369,6 +440,8 @@ pm2 logs monpetitbiz
 ```
 
 ## 🚀 Deployment
+
+For detailed production deployment instructions, see the [Twilio Production Deployment Guide](docs/twilio-production-deployment.md).
 
 ### Docker Deployment
 
@@ -392,12 +465,19 @@ DATABASE_URL=postgresql://user:pass@host:5432/dbname
 REDIS_URL=redis://localhost:6379  # For production queue
 ```
 
+### Monitoring and Alerting
+
+For comprehensive monitoring setup, see:
+- [Monitoring and Alerting Guide](docs/twilio-monitoring-alerting-guide.md)
+- [Troubleshooting Guide](docs/twilio-troubleshooting-guide.md)
+
 ## 📚 API Documentation
 
 The complete API documentation is available at `/api` when the server is running. Key endpoints include:
 
 - **Authentication**: `/auth/*`
-- **WhatsApp Webhook**: `/whatsapp/webhook`
+- **Twilio Webhook**: `/whatsapp/twilio/webhook`
+- **Meta Webhook** (fallback): `/whatsapp/webhook`
 - **Health Checks**: `/health/*`
 - **Dashboard API**: `/dashboard/*`
 

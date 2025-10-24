@@ -1,15 +1,45 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NLPService, UserContext } from '../nlp.service';
 import { CommandParserService } from '../command-parser.service';
+import { ConversationStateService } from '../conversation-state.service';
 import { ProcessedMessage } from '../../interfaces/webhook.interface';
 
 describe('NLPService', () => {
   let service: NLPService;
   let commandParserService: CommandParserService;
 
+  const mockConversationStateService = {
+    isInRegistration: jest.fn().mockReturnValue(false),
+    getRegistrationState: jest.fn().mockReturnValue(null),
+  };
+
+  const mockCommandParserService = {
+    parseMessage: jest.fn().mockReturnValue({
+      type: 'sale',
+      amount: 1000,
+      product: 'pain',
+      confidence: 0.9,
+    }),
+    validateCommand: jest.fn().mockReturnValue({
+      isValid: true,
+      errors: [],
+    }),
+    getHelpMessage: jest.fn().mockReturnValue('Aide disponible'),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [NLPService, CommandParserService],
+      providers: [
+        NLPService,
+        {
+          provide: CommandParserService,
+          useValue: mockCommandParserService,
+        },
+        {
+          provide: ConversationStateService,
+          useValue: mockConversationStateService,
+        },
+      ],
     }).compile();
 
     service = module.get<NLPService>(NLPService);

@@ -1,13 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 export interface ParsedCommand {
-  type: 'sale' | 'expense' | 'stock' | 'stock_query' | 'balance' | 'report' | 'unknown';
+  type: 'sale' | 'expense' | 'stock' | 'stock_query' | 'product_list' | 'price_set' | 'balance' | 'report' | 'registration' | 'help' | 'unknown';
   amount?: number;
+  quantity?: number; // For sales by quantity (e.g., "vente 10 pain")
   product?: string;
   description?: string;
   period?: 'day' | 'week' | 'month';
   stockAction?: 'update' | 'query';
   stockQuantity?: number;
+  unitPrice?: number; // For price setting commands
+  helpCategory?: 'general' | 'sales' | 'expenses' | 'stock' | 'reports' | 'commands';
   confidence: number;
   originalText: string;
   language: string;
@@ -18,8 +21,11 @@ export interface LanguagePatterns {
   expense: RegExp[];
   stock: RegExp[];
   stockQuery: RegExp[];
+  productList: RegExp[];
+  priceSet: RegExp[];
   balance: RegExp[];
   report: RegExp[];
+  help: RegExp[];
   amounts: RegExp[];
   products: RegExp;
 }
@@ -31,11 +37,26 @@ export class CommandParserService {
   // French patterns
   private readonly frenchPatterns: LanguagePatterns = {
     sale: [
-      /^(?:vente|vendu|j'ai vendu|sale)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s*(.*)$/i,
-      /^(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s+(?:vente|vendu|sale)\s*(.*)$/i,
+      // Format: vente 1000 (montant seul)
+      /^(?:vente|vendu|j'ai vendu|sale)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s*$/i,
+
+      // Format: vente 10 pain (quantité + produit)
+      /^(?:vente|vendu|j'ai vendu|sale)\s+(\d+)\s+(.+?)$/i,
+
+      // Format: vente 10 pain 500 (quantité + produit + montant)
+      /^(?:vente|vendu|j'ai vendu|sale)\s+(\d+)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
+
+      // Format: vente pain 500 (produit + montant avec CFA explicite)
+      /^(?:vente|sale)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)$/i,
+
+      // Format: j'ai vendu du pain à 2000 (langage naturel)
       /^j'ai vendu\s+(?:du\s+|de\s+|le\s+|la\s+|les\s+)?(.+?)\s+(?:à|pour|a)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
-      /^j'ai vendu\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i, // "j'ai vendu 1000"
-      /^(?:vente|sale)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
+
+      // Format: 1000 vente (montant en premier)
+      /^(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s+(?:vente|vendu|sale)\s*(.*)$/i,
+
+      // Format: vente pain (produit sans montant - sera demandé)
+      /^(?:vente|sale)\s+(.+)$/i,
     ],
     expense: [
       /^(?:dépense|depense|expense|achat|acheté|j'ai acheté)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s*(.*)$/i,
@@ -53,6 +74,12 @@ export class CommandParserService {
       /^(?:stock|voir stock|check stock)$/i,
       /^(.+?)\s+stock\s*\?*$/i,
     ],
+    productList: [
+      /^(?:produits|liste produits|voir produits|list products)$/i,
+    ],
+    priceSet: [
+      /^(?:prix|price)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
+    ],
     balance: [
       /^(?:bilan|balance|résumé|resume)\s+(jour|day|aujourd'hui|today)$/i,
       /^(?:bilan|balance|résumé|resume)\s+(semaine|week|cette semaine|this week)$/i,
@@ -64,6 +91,16 @@ export class CommandParserService {
       /^(?:rapport|report)\s+(jour|day|semaine|week|mois|month)$/i,
       /^(?:rapport|report)$/i,
     ],
+    help: [
+      /^(?:aide|help|aidez-moi|help me|\?)$/i,
+      /^(?:aide|help)\s+(vente|ventes|sales?)$/i,
+      /^(?:aide|help)\s+(dépense|dépenses|depense|depenses|expense|expenses)$/i,
+      /^(?:aide|help)\s+(stock|stocks|inventaire)$/i,
+      /^(?:aide|help)\s+(rapport|rapports|report|reports)$/i,
+      /^(?:aide|help)\s+(commande|commandes|command|commands)$/i,
+      /^(?:comment|how)\s+(?:faire|to|do)\s*(.*)$/i,
+      /^(?:que|what)\s+(?:puis-je|can i|peux-je)\s+(?:faire|do)$/i,
+    ],
     amounts: [
       /(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f|francs?)?/gi,
     ],
@@ -71,34 +108,39 @@ export class CommandParserService {
   };
 
   // Wolof patterns (basic support)
-  private readonly wolofPatterns: LanguagePatterns = {
-    sale: [
-      /^(?:jaay|sell)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s*(.*)$/i,
-    ],
-    expense: [
-      /^(?:jënd|buy|acheté)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s*(.*)$/i,
-    ],
-    stock: [
-      /^(?:stock|réserve)\s+(.+?)\s+(\d+)$/i,
-    ],
-    stockQuery: [
-      /^(?:stock|réserve)\s+(.+)$/i,
-      /^(?:stock|réserve)$/i,
-    ],
-    balance: [
-      /^(?:bilan|compte)\s+(tey|aujourd'hui|today)$/i,
-      /^(?:bilan|compte)\s+(ayu-bis|semaine|week)$/i,
-      /^(?:bilan|compte)\s+(weer|mois|month)$/i,
-      /^(?:bilan|compte)$/i,
-    ],
-    report: [
-      /^(?:rapport|report)$/i,
-    ],
-    amounts: [
-      /(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f|francs?)?/gi,
-    ],
-    products: /(?:mburu|ceeb|néré|ataya|café|lait|pain|riz)/gi,
-  };
+  // private readonly wolofPatterns: LanguagePatterns = {
+  //   sale: [
+  //     /^(?:jaay|sell)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s*(.*)$/i,
+  //   ],
+  //   expense: [
+  //     /^(?:jënd|buy|acheté)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s*(.*)$/i,
+  //   ],
+  //   stock: [
+  //     /^(?:stock|réserve)\s+(.+?)\s+(\d+)$/i,
+  //   ],
+  //   stockQuery: [
+  //     /^(?:stock|réserve)\s+(.+)$/i,
+  //     /^(?:stock|réserve)$/i,
+  //   ],
+  //   balance: [
+  //     /^(?:bilan|compte)\s+(tey|aujourd'hui|today)$/i,
+  //     /^(?:bilan|compte)\s+(ayu-bis|semaine|week)$/i,
+  //     /^(?:bilan|compte)\s+(weer|mois|month)$/i,
+  //     /^(?:bilan|compte)$/i,
+  //   ],
+  //   report: [
+  //     /^(?:rapport|report)$/i,
+  //   ],
+  //   help: [
+  //     /^(?:ndimbal|aide|help)$/i,
+  //     /^(?:ndimbal|aide|help)\s+(jaay|vente)$/i,
+  //     /^(?:ndimbal|aide|help)\s+(jënd|dépense)$/i,
+  //   ],
+  //   amounts: [
+  //     /(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f|francs?)?/gi,
+  //   ],
+  //   products: /(?:mburu|ceeb|néré|ataya|café|lait|pain|riz)/gi,
+  // };
 
   /**
    * Parse a message and extract command information
@@ -106,14 +148,18 @@ export class CommandParserService {
   parseMessage(text: string, userLanguage?: string): ParsedCommand {
     const cleanText = this.cleanText(text);
     const detectedLanguage = this.detectLanguage(cleanText, userLanguage);
-    
+
     this.logger.debug(`Parsing message: "${cleanText}" (language: ${detectedLanguage})`);
 
     // Try to parse with detected language patterns
     const patterns = this.getPatterns(detectedLanguage);
-    
+
     // Try each command type in order of specificity
-    let result = this.tryParseSale(cleanText, patterns);
+    // Check for help first as it's a high-priority command
+    let result = this.tryParseHelp(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseSale(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
     result = this.tryParseExpense(cleanText, patterns);
@@ -123,6 +169,12 @@ export class CommandParserService {
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
     result = this.tryParseStockQuery(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseProductList(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParsePriceSet(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
     result = this.tryParseBalance(cleanText, patterns);
@@ -152,7 +204,7 @@ export class CommandParserService {
     if (wolofKeywords.test(text)) {
       return 'wo';
     }
-    
+
     if (frenchKeywords.test(text)) {
       return 'fr';
     }
@@ -166,8 +218,8 @@ export class CommandParserService {
    */
   private getPatterns(language: string): LanguagePatterns {
     switch (language) {
-      case 'wo':
-        return this.wolofPatterns;
+      // case 'wo':
+      //   return this.wolofPatterns;
       case 'fr':
       default:
         return this.frenchPatterns;
@@ -190,11 +242,12 @@ export class CommandParserService {
   /**
    * Try to parse as sale command
    */
-  private tryParseSale(text: string, patterns: LanguagePatterns): { type: string; confidence: number; [key: string]: any } {
+  private tryParseSale(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
     for (const pattern of patterns.sale) {
       const match = text.match(pattern);
       if (match) {
         let amount: number | undefined;
+        let quantity: number | undefined;
         let productText = '';
 
         // Check if this is a natural language pattern (contains "j'ai vendu")
@@ -209,16 +262,11 @@ export class CommandParserService {
             amount = this.parseAmount(match[2]);
           }
         } else {
-          // For other patterns, try to identify which match group contains the amount
-          for (let i = 1; i < match.length; i++) {
-            const possibleAmount = this.parseAmount(match[i]);
-            if (possibleAmount) {
-              amount = possibleAmount;
-              // The other matches are product/description
-              productText = match.filter((m, idx) => idx !== 0 && idx !== i && m).join(' ');
-              break;
-            }
-          }
+          // Smart parsing: distinguish between quantity and amount
+          const result = this.parseQuantityAndAmount(match, text);
+          amount = result.amount;
+          quantity = result.quantity;
+          productText = result.productText;
         }
 
         const product = this.extractProduct(productText);
@@ -226,9 +274,10 @@ export class CommandParserService {
         return {
           type: 'sale',
           amount,
+          quantity,
           product: product || undefined,
           description: productText.trim() || undefined,
-          confidence: amount ? 0.9 : 0.7,
+          confidence: (amount || quantity) ? 0.9 : 0.7,
         };
       }
     }
@@ -237,9 +286,117 @@ export class CommandParserService {
   }
 
   /**
+   * Smart parsing to distinguish between quantity and amount
+   */
+  private parseQuantityAndAmount(match: RegExpMatchArray, originalText: string): {
+    amount?: number;
+    quantity?: number;
+    productText: string;
+  } {
+    let amount: number | undefined;
+    let quantity: number | undefined;
+    let productText = '';
+
+    // Check for the specific pattern: vente 10 pain 500
+    const fullPattern = /^(?:vente|vendu|j'ai vendu|sale)\s+(\d+)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i;
+    const fullMatch = originalText.match(fullPattern);
+
+    if (fullMatch) {
+      // Format: vente 10 pain 500 (quantity + product + amount)
+      quantity = parseInt(fullMatch[1]);
+      productText = fullMatch[2].trim();
+      amount = this.parseAmount(fullMatch[3]);
+      return { amount, quantity, productText };
+    }
+
+    // Extract all numbers and text from matches
+    const numbers: number[] = [];
+    const textParts: string[] = [];
+
+    for (let i = 1; i < match.length; i++) {
+      if (match[i]) {
+        const num = this.parseAmount(match[i]);
+        if (num !== undefined) {
+          numbers.push(num);
+        } else {
+          textParts.push(match[i]);
+        }
+      }
+    }
+
+    productText = textParts.join(' ').trim();
+
+    if (numbers.length === 1) {
+      const number = numbers[0];
+
+      // Heuristics to determine if it's quantity or amount
+      if (this.isLikelyQuantity(number, productText, originalText)) {
+        quantity = number;
+        // For quantity sales, we need to calculate amount later or ask for price
+      } else {
+        amount = number;
+      }
+    } else if (numbers.length === 2) {
+      // Two numbers: try to determine which is quantity and which is amount
+      const [first, second] = numbers;
+
+      if (this.isLikelyQuantity(first, productText, originalText)) {
+        quantity = first;
+        amount = second;
+      } else if (this.isLikelyQuantity(second, productText, originalText)) {
+        quantity = second;
+        amount = first;
+      } else {
+        // Both seem like amounts, take the larger as amount
+        amount = Math.max(first, second);
+      }
+    }
+
+    return { amount, quantity, productText };
+  }
+
+  /**
+   * Determine if a number is likely a quantity rather than an amount
+   */
+  private isLikelyQuantity(number: number, productText: string, originalText: string): boolean {
+    // Small numbers (1-100) are more likely to be quantities
+    if (number <= 100) {
+      // Check if the pattern suggests quantity first
+      // "vente 10 pain" vs "vente pain 10"
+      const quantityFirstPattern = /^(?:vente|sale)\s+(\d+)\s+(.+)$/i;
+      if (quantityFirstPattern.test(originalText)) {
+        return true;
+      }
+
+      // Very small numbers (1-20) are almost always quantities
+      if (number <= 20) {
+        return true;
+      }
+
+      // Numbers 21-100 with product context are likely quantities
+      if (productText && number <= 100) {
+        return true;
+      }
+    }
+
+    // Large numbers (>500) are more likely to be amounts in CFA
+    if (number >= 500) {
+      return false;
+    }
+
+    // Medium numbers (101-499) are ambiguous, use context
+    // If there's a product mentioned, lean towards quantity
+    if (productText && number < 500) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Try to parse as expense command
    */
-  private tryParseExpense(text: string, patterns: LanguagePatterns): { type: string; confidence: number; [key: string]: any } {
+  private tryParseExpense(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
     for (const pattern of patterns.expense) {
       const match = text.match(pattern);
       if (match) {
@@ -282,7 +439,7 @@ export class CommandParserService {
   /**
    * Try to parse as stock update command
    */
-  private tryParseStock(text: string, patterns: LanguagePatterns): { type: string; confidence: number; [key: string]: any } {
+  private tryParseStock(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
     for (const pattern of patterns.stock) {
       const match = text.match(pattern);
       if (match) {
@@ -316,12 +473,12 @@ export class CommandParserService {
   /**
    * Try to parse as stock query command
    */
-  private tryParseStockQuery(text: string, patterns: LanguagePatterns): { type: string; confidence: number; [key: string]: any } {
+  private tryParseStockQuery(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
     for (const pattern of patterns.stockQuery) {
       const match = text.match(pattern);
       if (match) {
         const product = match[1]?.trim();
-        
+
         return {
           type: 'stock_query',
           stockAction: 'query',
@@ -335,9 +492,48 @@ export class CommandParserService {
   }
 
   /**
+   * Try to parse as product list command
+   */
+  private tryParseProductList(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.productList) {
+      const match = text.match(pattern);
+      if (match) {
+        return {
+          type: 'product_list',
+          confidence: 0.9,
+        };
+      }
+    }
+
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as price set command
+   */
+  private tryParsePriceSet(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.priceSet) {
+      const match = text.match(pattern);
+      if (match) {
+        const product = match[1]?.trim();
+        const price = this.parseAmount(match[2]);
+
+        return {
+          type: 'price_set',
+          product,
+          unitPrice: price,
+          confidence: price ? 0.9 : 0.7,
+        };
+      }
+    }
+
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
    * Try to parse as balance command
    */
-  private tryParseBalance(text: string, patterns: LanguagePatterns): { type: string; confidence: number; [key: string]: any } {
+  private tryParseBalance(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
     for (const pattern of patterns.balance) {
       const match = text.match(pattern);
       if (match) {
@@ -366,7 +562,7 @@ export class CommandParserService {
   /**
    * Try to parse as report command
    */
-  private tryParseReport(text: string, patterns: LanguagePatterns): { type: string; confidence: number; [key: string]: any } {
+  private tryParseReport(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
     for (const pattern of patterns.report) {
       const match = text.match(pattern);
       if (match) {
@@ -393,9 +589,46 @@ export class CommandParserService {
   }
 
   /**
+   * Try to parse help command
+   */
+  private tryParseHelp(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.help) {
+      const match = text.match(pattern);
+      if (match) {
+        let helpCategory: string = 'general';
+        let confidence = 0.9;
+
+        // Determine help category based on the match
+        if (match[1]) {
+          const category = match[1].toLowerCase();
+          if (/vente|sales?|jaay/.test(category)) {
+            helpCategory = 'sales';
+          } else if (/dépense|depense|expense|jënd/.test(category)) {
+            helpCategory = 'expenses';
+          } else if (/stock|inventaire/.test(category)) {
+            helpCategory = 'stock';
+          } else if (/rapport|report/.test(category)) {
+            helpCategory = 'reports';
+          } else if (/commande|command/.test(category)) {
+            helpCategory = 'commands';
+          }
+        }
+
+        return {
+          type: 'help',
+          helpCategory,
+          confidence,
+        };
+      }
+    }
+
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
    * Fallback parsing for unrecognized commands
    */
-  private tryFallbackParsing(text: string, patterns: LanguagePatterns): { type: string; confidence: number; [key: string]: any } {
+  private tryFallbackParsing(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
     // Try to extract amount and product even if command type is unclear
     const amount = this.extractAmount(text, patterns);
     const product = this.extractProduct(text);
@@ -433,11 +666,11 @@ export class CommandParserService {
    */
   private parseAmount(text: string): number | undefined {
     if (!text) return undefined;
-    
+
     // Replace comma with dot for decimal parsing
     const normalizedText = text.replace(',', '.');
     const amount = parseFloat(normalizedText);
-    
+
     return isNaN(amount) || amount <= 0 ? undefined : amount;
   }
 
@@ -485,20 +718,23 @@ export class CommandParserService {
    */
   getHelpMessage(language: string = 'fr'): string {
     if (language === 'wo') {
-      return `Désolé, je n'ai pas compris. Essayez:
-• "jaay 1000" - pour une vente
-• "jënd 500 mburu" - pour un achat
-• "stock pain 10" - pour mettre à jour le stock
-• "bilan tey" - pour le bilan du jour`;
+      return `Désolé, je n'ai pas compris. Essayez:\n` +
+        `• "jaay 1000" - pour une vente\n` +
+        `• "jënd 500 mburu" - pour un achat\n` +
+        `• "stock pain 10" - pour mettre à jour le stock\n` +
+        `• "bilan tey" - pour le bilan du jour\n\n` +
+        `💡 Tapez "aide" pour une aide complète.`;
     }
 
-    return `Désolé, je n'ai pas compris. Essayez:
-• "vente 1000" ou "vente pain 1000" - pour enregistrer une vente
-• "dépense 500" ou "dépense 500 marchandise" - pour une dépense
-• "stock pain 10" - pour mettre à jour le stock
-• "stock pain" - pour voir le stock d'un produit
-• "bilan jour" - pour le bilan du jour
-• "rapport PDF" - pour générer un rapport`;
+    return `Désolé, je n'ai pas compris. Essayez:\n` +
+      `• "vente 1000" - vente de 1000 CFA\n` +
+      `• "vente 10 pain 500" - vendre 10 pains pour 500 CFA au total\n` +
+      `• "vente pain 250" - vendre du pain pour 250 CFA\n` +
+      `• "dépense 500" ou "dépense 500 marchandise" - pour une dépense\n` +
+      `• "stock pain 10" - pour mettre à jour le stock\n` +
+      `• "stock pain" - pour voir le stock d'un produit\n` +
+      `• "bilan jour" - pour le bilan du jour\n\n` +
+      `💡 Tapez "aide" pour une aide complète avec tous les détails.`;
   }
 
   /**
@@ -536,6 +772,18 @@ export class CommandParserService {
         if (command.period && !['day', 'week', 'month'].includes(command.period)) {
           errors.push('Période invalide. Utilisez: jour, semaine, ou mois');
         }
+        break;
+
+      case 'help':
+        // Help commands are always valid
+        // Validate helpCategory if provided
+        if (command.helpCategory && !['general', 'sales', 'expenses', 'stock', 'reports', 'commands'].includes(command.helpCategory)) {
+          errors.push('Catégorie d\'aide invalide');
+        }
+        break;
+
+      case 'registration':
+        // Registration commands are always valid
         break;
 
       case 'unknown':

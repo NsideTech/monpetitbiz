@@ -9,6 +9,7 @@ import { AuthService } from '../auth.service';
 import { User, UserRole } from '../entities/user.entity';
 import { Business } from '../entities/business.entity';
 import { OtpSession } from '../entities/otp-session.entity';
+import { PhoneValidationService } from '../services/phone-validation.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -67,6 +68,13 @@ describe('AuthService', () => {
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: PhoneValidationService,
+          useValue: {
+            extractCountryFromWhatsApp: jest.fn(),
+            checkPhoneNumberStatus: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -191,9 +199,21 @@ describe('AuthService', () => {
       mockUserRepository.create.mockReturnValue(mockUser);
       mockUserRepository.save.mockResolvedValue(mockUser);
 
+      // Mock JWT token generation
+      mockJwtService.sign.mockReturnValue('jwt-token');
+      
+      // Mock final user lookup with business relation
+      mockUserRepository.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce({
+        ...mockUser,
+        business: mockBusiness,
+      });
+
       const result = await service.registerUser(registerDto);
 
-      expect(result).toEqual(mockUser);
+      expect(result).toEqual({
+        user: { ...mockUser, business: mockBusiness },
+        accessToken: 'jwt-token',
+      });
       expect(mockBusinessRepository.create).toHaveBeenCalledWith({
         name: 'Test Business',
         currency: 'XOF',

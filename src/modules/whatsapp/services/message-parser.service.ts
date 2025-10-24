@@ -95,7 +95,7 @@ export class MessageParserService {
     const messageDate = new Date(timestamp * 1000);
     const now = new Date();
     const hoursDiff = (now.getTime() - messageDate.getTime()) / (1000 * 60 * 60);
-    
+
     if (hoursDiff > 24) {
       this.logger.warn(`Message is too old (${hoursDiff.toFixed(1)} hours), skipping`, {
         messageId: message.id,
@@ -107,7 +107,7 @@ export class MessageParserService {
     // Validate message content
     if (message.text?.body) {
       const body = message.text.body.trim();
-      
+
       // Check message length
       if (body.length === 0) {
         this.logger.debug('Empty message body, skipping');
@@ -133,11 +133,14 @@ export class MessageParserService {
    * Basic phone number validation
    */
   private isValidPhoneNumber(phoneNumber: string): boolean {
-    // WhatsApp phone numbers are typically in format: country_code + number
-    // Example: 221771234567 (Senegal)
-    // Allow numbers with 10-15 digits, may include country code
-    const phoneRegex = /^\d{10,15}$/;
-    return phoneRegex.test(phoneNumber);
+    // WhatsApp phone numbers can be in different formats:
+    // E.164 format: +14182710361 (with + prefix)
+    // Plain digits: 14182710361 or 226771234567 (Burkina Faso)
+    // Allow both formats with 10-15 digits total
+    const e164Regex = /^\+\d{10,15}$/; // E.164 format with +
+    const plainDigitsRegex = /^\d{10,15}$/; // Plain digits only
+    
+    return e164Regex.test(phoneNumber) || plainDigitsRegex.test(phoneNumber);
   }
 
   /**

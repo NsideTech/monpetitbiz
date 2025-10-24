@@ -1,9 +1,10 @@
-import { Injectable, Logger, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WebhookSecurityService } from './services/webhook-security.service';
 import { MessageParserService } from './services/message-parser.service';
 import { MessageQueueService } from './services/message-queue.service';
 import { WebhookPayload } from './interfaces/webhook.interface';
+import { DualProviderService, WhatsAppProvider } from './services/dual-provider.service';
 
 @Injectable()
 export class WhatsappService {
@@ -14,6 +15,8 @@ export class WhatsappService {
     private readonly webhookSecurity: WebhookSecurityService,
     private readonly messageParser: MessageParserService,
     private readonly messageQueue: MessageQueueService,
+    @Inject(forwardRef(() => DualProviderService))
+    private readonly dualProviderService?: DualProviderService,
   ) {}
 
   /**
@@ -42,8 +45,31 @@ export class WhatsappService {
   async processWebhook(
     payload: WebhookPayload, 
     signature?: string, 
+    rawBody?: string,
+    source: WhatsAppProvider = 'meta'
+  ): Promise<{ messagesProcessed: number; errors: string[] }> {
+    // Use dual provider service if available and source is not meta
+    if (this.dualProviderService && source !== 'meta') {
+      const result = await this.dualProviderService.processWebhook(payload, source, signature, rawBody);
+      return { 
+        messagesProcessed: result.messagesProcessed, 
+        errors: result.errors 
+      };
+    }
+
+    // Process webhook directly (for Meta or when dual provider is not available)
+    return this.processWebhookDirect(payload, signature, rawBody);
+  }
+
+  /**
+   * Process webhook payload directly without dual provider routing
+   */
+  async processWebhookDirect(
+    payload: WebhookPayload, 
+    signature?: string, 
     rawBody?: string
   ): Promise<{ messagesProcessed: number; errors: string[] }> {
+    // Original Meta webhook processing
     const errors: string[] = [];
     let messagesProcessed = 0;
 
@@ -113,52 +139,23 @@ export class WhatsappService {
   /**
    * Send a WhatsApp message
    */
-  async sendMessage(to: string, message: string): Promise<void> {
-    try {
-      const accessToken = this.configService.get('WHATSAPP_ACCESS_TOKEN');
-      const phoneNumberId = this.configService.get('WHATSAPP_PHONE_NUMBER_ID');
-
-      if (!accessToken || !phoneNumberId) {
-        this.logger.error('WhatsApp API credentials not configured');
-        throw new Error('WhatsApp API credentials not configured');
+  async sendMessage(
+    to: string, 
+    message: string, 
+    preferredProvider?: WhatsAppProvider
+  ): Promise<void> {
+    // Use dual provider service if available (defaults to Twilio)
+    if (this.dualProviderService) {
+      const result = await this.dualProviderService.sendMessage(to, message, preferredProvider || 'twilio');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to send message');
       }
-
-      // Format phone number (remove any non-digit characters except +)
-      const formattedPhone = to.replace(/[^\d+]/g, '');
-
-      const payload = {
-        messaging_product: 'whatsapp',
-        to: formattedPhone,
-        type: 'text',
-        text: {
-          body: message
-        }
-      };
-
-      const response = await fetch(
-        `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`WhatsApp API error: ${JSON.stringify(errorData)}`);
-      }
-
-      const result = await response.json();
-      this.logger.log(`Message sent successfully to ${formattedPhone}: ${result.messages?.[0]?.id}`);
-      
-    } catch (error) {
-      this.logger.error(`Failed to send message to ${to}: ${error.message}`);
-      throw error;
+      return;
     }
+
+    // Fallback to direct Meta API implementation (deprecated - use dual provider service)
+    this.logger.warn('Using deprecated Meta API fallback. Consider configuring dual provider service.');
+    throw new Error('Direct Meta API calls are deprecated. Please configure Twilio or dual provider service.');
   }
 
   /**
@@ -168,55 +165,27 @@ export class WhatsappService {
     to: string, 
     documentUrl: string, 
     fileName: string, 
-    caption?: string
+    caption?: string,
+    preferredProvider?: WhatsAppProvider
   ): Promise<void> {
-    try {
-      const accessToken = this.configService.get('WHATSAPP_ACCESS_TOKEN');
-      const phoneNumberId = this.configService.get('WHATSAPP_PHONE_NUMBER_ID');
-
-      if (!accessToken || !phoneNumberId) {
-        this.logger.error('WhatsApp API credentials not configured');
-        throw new Error('WhatsApp API credentials not configured');
-      }
-
-      // Format phone number (remove any non-digit characters except +)
-      const formattedPhone = to.replace(/[^\d+]/g, '');
-
-      const payload = {
-        messaging_product: 'whatsapp',
-        to: formattedPhone,
-        type: 'document',
-        document: {
-          link: documentUrl,
-          filename: fileName,
-          caption: caption || `Rapport financier - ${fileName}`
-        }
-      };
-
-      const response = await fetch(
-        `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        }
+    // Use dual provider service if available (defaults to Twilio)
+    if (this.dualProviderService) {
+      const result = await this.dualProviderService.sendMedia(
+        to, 
+        documentUrl, 
+        caption || `Rapport financier - ${fileName}`, 
+        fileName, 
+        preferredProvider || 'twilio'
       );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`WhatsApp API error: ${JSON.stringify(errorData)}`);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to send PDF document');
       }
-
-      const result = await response.json();
-      this.logger.log(`PDF document sent successfully to ${formattedPhone}: ${result.messages?.[0]?.id}`);
-      
-    } catch (error) {
-      this.logger.error(`Failed to send PDF document to ${to}: ${error.message}`);
-      throw error;
+      return;
     }
+
+    // Fallback to direct Meta API implementation (deprecated - use dual provider service)
+    this.logger.warn('Using deprecated Meta API fallback. Consider configuring dual provider service.');
+    throw new Error('Direct Meta API calls are deprecated. Please configure Twilio or dual provider service.');
   }
 
   /**
@@ -234,5 +203,53 @@ export class WhatsappService {
       hasPhoneNumberId: !!this.configService.get('WHATSAPP_PHONE_NUMBER_ID'),
       hasAccessToken: !!this.configService.get('WHATSAPP_ACCESS_TOKEN'),
     };
+  }
+
+  /**
+   * Get provider configuration and health status
+   */
+  async getProviderStatus(): Promise<{
+    dualProviderEnabled: boolean;
+    providerHealth?: any;
+    providerConfiguration?: any;
+  }> {
+    if (!this.dualProviderService) {
+      return { dualProviderEnabled: false };
+    }
+
+    const [providerHealth, providerConfiguration] = await Promise.all([
+      this.dualProviderService.getProviderHealth(),
+      Promise.resolve(this.dualProviderService.getProviderConfiguration()),
+    ]);
+
+    return {
+      dualProviderEnabled: true,
+      providerHealth,
+      providerConfiguration,
+    };
+  }
+
+  /**
+   * Send message with specific provider (convenience method)
+   */
+  async sendMessageWithProvider(
+    to: string, 
+    message: string, 
+    provider: WhatsAppProvider
+  ): Promise<void> {
+    return this.sendMessage(to, message, provider);
+  }
+
+  /**
+   * Send PDF document with specific provider (convenience method)
+   */
+  async sendPDFDocumentWithProvider(
+    to: string, 
+    documentUrl: string, 
+    fileName: string, 
+    caption?: string,
+    provider?: WhatsAppProvider
+  ): Promise<void> {
+    return this.sendPDFDocument(to, documentUrl, fileName, caption, provider);
   }
 }

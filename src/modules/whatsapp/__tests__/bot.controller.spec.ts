@@ -6,6 +6,9 @@ import { TransactionService } from '../../transaction/transaction.service';
 import { StockService } from '../../stock/stock.service';
 import { ReportService } from '../../report/report.service';
 import { WhatsappService } from '../whatsapp.service';
+import { TwilioWhatsAppService } from '../services/twilio-whatsapp.service';
+import { RegistrationHandlerService } from '../services/registration-handler.service';
+import { OnboardingCheckMiddleware } from '../middleware/onboarding-check.middleware';
 import { ProcessedMessage } from '../interfaces/webhook.interface';
 import { TransactionType } from '../../transaction/entities/transaction.entity';
 
@@ -60,6 +63,25 @@ describe('BotController', () => {
           provide: WhatsappService,
           useValue: {
             sendMessage: jest.fn(),
+          },
+        },
+        {
+          provide: TwilioWhatsAppService,
+          useValue: {
+            sendMessage: jest.fn(),
+          },
+        },
+        {
+          provide: RegistrationHandlerService,
+          useValue: {
+            handleRegistrationMessage: jest.fn(),
+          },
+        },
+        {
+          provide: OnboardingCheckMiddleware,
+          useValue: {
+            checkUserOnboardingStatus: jest.fn(),
+            interceptMessage: jest.fn().mockResolvedValue({ shouldProceed: true }),
           },
         },
       ],

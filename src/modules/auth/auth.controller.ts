@@ -8,7 +8,9 @@ import {
   UseGuards,
   Request,
   UsePipes,
-  ValidationPipe
+  ValidationPipe,
+  Param,
+  Delete
 } from '@nestjs/common';
 import {
   IsString,
@@ -20,6 +22,7 @@ import {
 } from 'class-validator';
 
 import { AuthService, SendOtpDto, VerifyOtpDto, RegisterUserDto, AuthResult } from './auth.service';
+import { EmployeeService } from './services/employee.service';
 import { UserRole } from './entities/user.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
@@ -57,10 +60,51 @@ export class RegisterUserRequestDto implements RegisterUserDto {
   language?: string;
 }
 
+export class RegisterBusinessOwnerRequestDto {
+  @IsString()
+  @IsNotEmpty()
+  phoneNumber: string;
+
+  @IsString()
+  @IsNotEmpty()
+  businessName: string;
+
+  @IsOptional()
+  @IsString()
+  language?: string;
+}
+
+export class RegisterEmployeeRequestDto {
+  @IsString()
+  @IsNotEmpty()
+  phoneNumber: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @Length(6, 6)
+  businessCode: string;
+
+  @IsString()
+  @IsNotEmpty()
+  employeeName: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsEnum(['seller', 'manager'])
+  role: 'seller' | 'manager';
+
+  @IsOptional()
+  @IsString()
+  language?: string;
+}
+
 @Controller('auth')
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(
+    private readonly authService: AuthService,
+    private readonly employeeService: EmployeeService,
+  ) { }
 
   /**
    * Send OTP to phone number
@@ -134,6 +178,172 @@ export class AuthController {
       },
       message: 'User registered and authenticated successfully.',
     };
+  }
+
+  /**
+   * Register new business owner with generated business code
+   */
+  @Post('register-business-owner')
+  @HttpCode(HttpStatus.CREATED)
+  async registerBusinessOwner(@Body() registerDto: RegisterBusinessOwnerRequestDto) {
+    try {
+      const result = await this.authService.registerBusinessOwner({
+        phoneNumber: registerDto.phoneNumber,
+        businessName: registerDto.businessName,
+        role: UserRole.OWNER,
+        language: registerDto.language,
+      });
+
+      return {
+        success: true,
+        data: {
+          user: {
+            id: result.user.id,
+            phoneNumber: result.user.phoneNumber,
+            role: result.user.role,
+            language: result.user.language,
+            businessId: result.user.businessId,
+            business: {
+              id: result.user.business.id,
+              name: result.user.business.name,
+              businessCode: result.user.business.businessCode,
+            },
+          },
+          accessToken: result.accessToken,
+          businessCode: result.user.business.businessCode,
+        },
+        message: `Entreprise créée avec succès! Code d'invitation: ${result.user.business.businessCode}. Partagez ce code avec vos employés.`,
+      };
+    } catch (error) {
+      if (error.status === 409) {
+        return {
+          success: false,
+          error: 'PHONE_EXISTS',
+          message: 'Un utilisateur avec ce numéro de téléphone existe déjà.',
+        };
+      }
+      
+      return {
+        success: false,
+        error: 'REGISTRATION_FAILED',
+        message: 'Erreur lors de la création de l\'entreprise. Veuillez réessayer.',
+      };
+    }
+  }
+
+  /**
+   * Register new employee with business code validation
+   */
+  @Post('register-employee')
+  @HttpCode(HttpStatus.CREATED)
+  async registerEmployee(@Body() registerDto: RegisterEmployeeRequestDto) {
+    try {
+      const result = await this.authService.registerEmployee(
+        registerDto.phoneNumber,
+        registerDto.businessCode,
+        registerDto.employeeName,
+        registerDto.role,
+        registerDto.language
+      );
+
+      // Get role display name in French
+      const roleDisplayName = registerDto.role === 'manager' ? 'Manager' : 'Vendeur';
+      
+      // Get permissions based on role
+      const permissions = registerDto.role === 'manager' 
+        ? ['Enregistrer ventes', 'Enregistrer dépenses', 'Gérer stock', 'Voir rapports']
+        : ['Enregistrer ventes', 'Gérer stock'];
+
+      return {
+        success: true,
+        data: {
+          user: {
+            id: result.user.id,
+            phoneNumber: result.user.phoneNumber,
+            employeeName: result.user.employeeName,
+            role: result.user.role,
+            language: result.user.language,
+            businessId: result.user.businessId,
+            business: {
+              id: result.user.business.id,
+              name: result.user.business.name,
+            },
+          },
+          accessToken: result.accessToken,
+          permissions,
+        },
+        message: `✅ Inscription réussie! Bienvenue ${registerDto.employeeName} chez ${result.user.business.name}. Rôle: ${roleDisplayName}`,
+      };
+    } catch (error) {
+      if (error.status === 409) {
+        return {
+          success: false,
+          error: 'PHONE_EXISTS',
+          message: 'Un utilisateur avec ce numéro de téléphone existe déjà.',
+        };
+      }
+      
+      if (error.status === 400 && error.message.includes('Invalid business code')) {
+        return {
+          success: false,
+          error: 'INVALID_BUSINESS_CODE',
+          message: 'Code d\'entreprise invalide. Vérifiez avec votre patron.',
+        };
+      }
+      
+      return {
+        success: false,
+        error: 'REGISTRATION_FAILED',
+        message: 'Erreur lors de l\'inscription. Veuillez réessayer.',
+      };
+    }
+  }
+
+  /**
+   * Get business information by business code for employee verification
+   */
+  @Get('business/:code')
+  @HttpCode(HttpStatus.OK)
+  async getBusinessByCode(@Param('code') code: string) {
+    try {
+      // Validate code format (6 characters alphanumeric)
+      if (!code || code.length !== 6 || !/^[A-Z0-9]+$/i.test(code)) {
+        return {
+          success: false,
+          error: 'INVALID_CODE_FORMAT',
+          message: 'Format de code invalide. Le code doit contenir 6 caractères alphanumériques (ex: ABC123).',
+        };
+      }
+
+      const result = await this.authService.getBusinessByCode(code);
+
+      if (!result) {
+        return {
+          success: false,
+          error: 'BUSINESS_NOT_FOUND',
+          message: 'Code d\'entreprise introuvable. Vérifiez le code avec votre patron.',
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          business: {
+            id: result.business.id,
+            name: result.business.name,
+            businessCode: result.business.businessCode,
+          },
+          employeeCount: result.employeeCount,
+        },
+        message: `Entreprise trouvée: ${result.business.name} (${result.employeeCount} employé${result.employeeCount > 1 ? 's' : ''})`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: 'LOOKUP_FAILED',
+        message: 'Erreur lors de la recherche de l\'entreprise. Veuillez réessayer.',
+      };
+    }
   }
 
   /**
@@ -248,6 +458,141 @@ export class AuthController {
       success: true,
       data: users,
       count: users.length,
+    };
+  }
+
+  /**
+   * Generate employee code (Owner only)
+   */
+  @Post('generate-employee-code')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async generateEmployeeCode(@Request() req) {
+    const result = await this.employeeService.generateEmployeeCode({
+      businessId: req.user.businessId,
+      createdBy: req.user.id,
+    });
+
+    return {
+      success: true,
+      data: result,
+      message: `Code employé généré: ${result.code}. Partagez ce code avec votre employé. Le code expire dans 24h.`,
+    };
+  }
+
+  /**
+   * Use employee code to join business
+   */
+  @Post('use-employee-code')
+  @HttpCode(HttpStatus.OK)
+  async useEmployeeCode(@Body() body: { code: string; phoneNumber: string }) {
+    const result = await this.employeeService.useEmployeeCode({
+      code: body.code.toUpperCase(),
+      phoneNumber: body.phoneNumber,
+    });
+
+    return {
+      success: true,
+      data: {
+        businessName: result.business.name,
+        businessId: result.business.id,
+      },
+      message: `Code valide! Vous allez rejoindre: ${result.business.name}`,
+    };
+  }
+
+  /**
+   * Complete employee registration after code validation
+   */
+  @Post('complete-employee-registration')
+  @HttpCode(HttpStatus.CREATED)
+  async completeEmployeeRegistration(@Body() body: {
+    phoneNumber: string;
+    businessId: string;
+    invitedBy: string;
+  }) {
+    const employee = await this.employeeService.createEmployeeAccount(
+      body.phoneNumber,
+      body.businessId,
+      body.invitedBy
+    );
+
+    // Generate JWT token for immediate authentication
+    const accessToken = await this.authService.generateJwtToken(employee);
+
+    return {
+      success: true,
+      data: {
+        user: {
+          id: employee.id,
+          phoneNumber: employee.phoneNumber,
+          role: employee.role,
+          businessId: employee.businessId,
+        },
+        accessToken,
+      },
+      message: 'Compte employé créé avec succès!',
+    };
+  }
+
+  /**
+   * Get employee codes (Owner only)
+   */
+  @Get('employee-codes')
+  @UseGuards(JwtAuthGuard)
+  async getEmployeeCodes(@Request() req) {
+    const codes = await this.employeeService.getEmployeeCodes(
+      req.user.businessId,
+      req.user.id
+    );
+
+    return {
+      success: true,
+      data: codes,
+      count: codes.length,
+    };
+  }
+
+  /**
+   * Get employees (Owner only)
+   */
+  @Get('employees')
+  @UseGuards(JwtAuthGuard)
+  async getEmployees(@Request() req) {
+    const employees = await this.employeeService.getEmployees(
+      req.user.businessId,
+      req.user.id
+    );
+
+    return {
+      success: true,
+      data: employees.map(emp => ({
+        id: emp.id,
+        phoneNumber: emp.phoneNumber,
+        role: emp.role,
+        language: emp.language,
+        isActive: emp.isActive,
+        joinedAt: emp.joinedAt,
+      })),
+      count: employees.length,
+    };
+  }
+
+  /**
+   * Remove employee (Owner only)
+   */
+  @Delete('employees/:phoneNumber')
+  @UseGuards(JwtAuthGuard)
+  async removeEmployee(@Request() req, @Param('phoneNumber') phoneNumber: string) {
+    await this.employeeService.removeEmployee(
+      req.user.businessId,
+      req.user.id,
+      phoneNumber
+    );
+
+    return {
+      success: true,
+      message: 'Employé supprimé avec succès',
     };
   }
 }

@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulateur WhatsApp Offline - MonPetitBiz</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #e5ddd5;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .whatsapp-container {
+            width: 400px;
+            height: 600px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: #075e54;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+        
+        .chat-area {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+            background: #e5ddd5;
+        }
+        
+        .message {
+            margin: 5px 0;
+            padding: 8px 12px;
+            border-radius: 8px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        
+        .message.user {
+            background: #dcf8c6;
+            margin-left: auto;
+            text-align: right;
+        }
+        
+        .message.bot {
+            background: white;
+            margin-right: auto;
+        }
+        
+        .input-area {
+            display: flex;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 0 0 10px 10px;
+        }
+        
+        .message-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            outline: none;
+        }
+        
+        .send-button {
+            background: #075e54;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            margin-left: 10px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .send-button:hover {
+            background: #064e45;
+        }
+        
+        .status {
+            padding: 5px 15px;
+            background: #d4edda;
+            border-bottom: 1px solid #c3e6cb;
+            font-size: 12px;
+            color: #155724;
+        }
+        
+        .examples {
+            margin-top: 10px;
+            padding: 10px;
+            background: #fff3cd;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        
+        .examples h4 {
+            margin-bottom: 5px;
+            color: #856404;
+        }
+        
+        .examples ul {
+            list-style: none;
+            padding-left: 10px;
+        }
+        
+        .examples li {
+            margin: 2px 0;
+            color: #856404;
+            cursor: pointer;
+        }
+        
+        .examples li:hover {
+            background: #ffeaa7;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+        
+        .typing {
+            font-style: italic;
+            color: #666;
+            background: #f0f0f0 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="whatsapp-container">
+        <div class="header">
+            <h3>🤖 MonPetitBiz Bot</h3>
+            <div style="font-size: 12px; opacity: 0.8;">Simulateur 100% Offline - Aucun appel Twilio !</div>
+        </div>
+        
+        <div class="status" id="status">
+            ✅ Mode Offline - Simulation locale uniquement
+        </div>
+        
+        <div class="chat-area" id="chatArea">
+            <div class="message bot">
+                👋 Bienvenue dans le simulateur offline !<br>
+                <strong>Aucun message ne sera envoyé à Twilio.</strong><br>
+                Testez toutes vos commandes sans limites !
+            </div>
+            
+            <div class="examples">
+                <h4>💡 Cliquez sur une commande pour l'essayer :</h4>
+                <ul>
+                    <li onclick="quickCommand('produits')">• produits</li>
+                    <li onclick="quickCommand('prix pain 300')">• prix pain 300</li>
+                    <li onclick="quickCommand('stock pain 50')">• stock pain 50</li>
+                    <li onclick="quickCommand('vente 10 pain')">• vente 10 pain</li>
+                    <li onclick="quickCommand('stock')">• stock</li>
+                    <li onclick="quickCommand('bilan')">• bilan</li>
+                    <li onclick="quickCommand('aide')">• aide</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="input-area">
+            <input 
+                type="text" 
+                class="message-input" 
+                id="messageInput" 
+                placeholder="Tapez votre message..."
+                onkeypress="handleKeyPress(event)"
+            >
+            <button class="send-button" onclick="sendMessage()">📤</button>
+        </div>
+    </div>
+
+    <script>
+        // Variables globales - Compatible tous navigateurs
+        var localStock = {
+            'pain': 50,
+            'lait': 20,
+            'riz': 30,
+            'huile': 10
+        };
+        
+        // Prix unitaires par défaut (en CFA)
+        var productPrices = {
+            'pain': 250,
+            'lait': 500,
+            'riz': 100,
+            'huile': 1500
+        };
+        
+        var localTransactions = [];
+        var messageCount = 0;
+        
+        // Fonctions utilitaires
+        function addMessage(text, isUser) {
+            if (typeof isUser === 'undefined') isUser = false;
+            var chatArea = document.getElementById('chatArea');
+            var messageDiv = document.createElement('div');
+            messageDiv.className = 'message ' + (isUser ? 'user' : 'bot');
+            messageDiv.innerHTML = text.replace(/\n/g, '<br>');
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+        
+        function updateStatus(text, isError) {
+            if (typeof isError === 'undefined') isError = false;
+            var status = document.getElementById('status');
+            status.textContent = text;
+            status.style.background = isError ? '#f8d7da' : '#d4edda';
+            status.style.color = isError ? '#721c24' : '#155724';
+        }
+        
+        function quickCommand(command) {
+            var input = document.getElementById('messageInput');
+            input.value = command;
+            sendMessage();
+        }
+        
+        function simulateBot(userMessage) {
+            var message = userMessage.toLowerCase().trim();
+            
+            // Commandes de stock
+            if (message.indexOf('stock ') === 0) {
+                var parts = message.split(' ');
+                if (parts.length === 3) {
+                    // stock pain 50
+                    var product = parts[1];
+                    var quantity = parseInt(parts[2]);
+                    localStock[product] = quantity;
+                    return '✅ Stock mis à jour: ' + product + ' = ' + quantity + ' unités';
+                } else if (parts.length === 2) {
+                    // stock pain
+                    var product = parts[1];
+                    var quantity = localStock[product] || 0;
+                    var response = '📦 Stock ' + product + ': ' + quantity + ' unités';
+                    if (quantity === 0) {
+                        response += ' ⚠️ (Rupture de stock)';
+                    } else if (quantity <= 5) {
+                        response += ' ⚠️ (Stock faible)';
+                    }
+                    return response;
+                }
+            }
+            
+            // Commande stock générale
+            if (message === 'stock') {
+                var response = '📦 ÉTAT DU STOCK:\n';
+                for (var product in localStock) {
+                    if (localStock.hasOwnProperty(product)) {
+                        var quantity = localStock[product];
+                        response += '• ' + product + ': ' + quantity + ' unités';
+                        if (quantity === 0) {
+                            response += ' ⚠️';
+                        } else if (quantity <= 5) {
+                            response += ' ⚠️';
+                        }
+                        response += '\n';
+                    }
+                }
+                return response;
+            }
+            
+            // Commande produits (liste des produits avec prix)
+            if (message === 'produits' || message === 'liste') {
+                var response = '📋 LISTE DES PRODUITS:\n\n';
+                for (var product in localStock) {
+                    if (localStock.hasOwnProperty(product)) {
+                        var quantity = localStock[product];
+                        var price = productPrices[product] || 0;
+                        response += '• ' + product + ':\n';
+                        response += '  📦 Stock: ' + quantity + ' unités\n';
+                        response += '  💰 Prix: ' + price + ' CFA/unité\n';
+                        if (quantity === 0) {
+                            response += '  ⚠️ Rupture de stock\n';
+                        } else if (quantity <= 5) {
+                            response += '  ⚠️ Stock faible\n';
+                        }
+                        response += '\n';
+                    }
+                }
+                return response;
+            }
+            
+            // Commande prix (définir prix unitaire)
+            if (message.indexOf('prix ') === 0) {
+                var parts = message.split(' ');
+                if (parts.length === 3) {
+                    var product = parts[1];
+                    var price = parseInt(parts[2]);
+                    if (!isNaN(price) && price > 0) {
+                        productPrices[product] = price;
+                        // Ajouter le produit au stock s'il n'existe pas
+                        if (!localStock.hasOwnProperty(product)) {
+                            localStock[product] = 0;
+                        }
+                        return '✅ Prix défini: ' + product + ' = ' + price + ' CFA/unité';
+                    } else {
+                        return '❌ Prix invalide. Utilisez un nombre positif.';
+                    }
+                } else {
+                    return '❓ Format: prix [produit] [montant]\n• Exemple: prix pain 300';
+                }
+            }
+            
+            // Commandes de vente
+            if (message.indexOf('vente ') === 0) {
+                return handleSaleCommand(message);
+            }
+            
+            // Commande bilan
+            if (message === 'bilan') {
+                var today = new Date().toDateString();
+                var todayTransactions = [];
+                
+                // Filtrer les transactions du jour
+                for (var i = 0; i < localTransactions.length; i++) {
+                    if (localTransactions[i].date.toDateString() === today) {
+                        todayTransactions.push(localTransactions[i]);
+                    }
+                }
+                
+                var totalSales = 0;
+                for (var j = 0; j < todayTransactions.length; j++) {
+                    totalSales += todayTransactions[j].amount;
+                }
+                
+                var response = '📊 BILAN DU JOUR\n\n';
+                response += '💰 Ventes: ' + totalSales + ' CFA\n';
+                response += '📋 Transactions: ' + todayTransactions.length + '\n\n';
+                
+                if (todayTransactions.length > 0) {
+                    response += '🏆 DERNIÈRES VENTES:\n';
+                    var recentTransactions = todayTransactions.slice(-3);
+                    for (var k = 0; k < recentTransactions.length; k++) {
+                        var t = recentTransactions[k];
+                        var time = t.date.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'});
+                        response += '• ' + time + ': ' + t.amount + ' CFA';
+                        if (t.product) response += ' (' + t.product + ')';
+                        if (t.quantity && t.quantity > 1) response += ' x' + t.quantity;
+                        response += '\n';
+                    }
+                }
+                
+                return response;
+            }
+            
+            // Commande aide
+            if (message === 'aide' || message === 'help') {
+                return '🤖 **AIDE - SIMULATEUR OFFLINE**\n\n' +
+                    '📋 **GESTION DES PRODUITS:**\n' +
+                    '• "produits" - Voir tous les produits et prix\n' +
+                    '• "prix pain 300" - Définir prix unitaire\n\n' +
+                    '📦 **GESTION DU STOCK:**\n' +
+                    '• "stock pain 50" - Mettre le stock à 50\n' +
+                    '• "stock pain" - Voir le stock du pain\n' +
+                    '• "stock" - Voir tout le stock\n\n' +
+                    '💰 **VENTES (FORMATS INTELLIGENTS):**\n' +
+                    '• "vente pain" - Vente au prix unitaire\n' +
+                    '• "vente 10 pain" - Calcul automatique\n' +
+                    '• "vente pain 500" - Prix personnalisé\n' +
+                    '• "vente 10 pain 2500" - Quantité + montant\n' +
+                    '• "vente 1000" - Montant libre\n\n' +
+                    '📊 **RAPPORTS:**\n' +
+                    '• "bilan" - Voir le bilan du jour\n\n' +
+                    '✨ **NOUVEAUTÉS:**\n' +
+                    '• Calcul automatique des prix\n' +
+                    '• Gestion des prix unitaires\n' +
+                    '• Liste complète des produits';
+            }
+            
+            // Message par défaut
+            return '❓ Commande non reconnue: "' + userMessage + '"\n\n' +
+                '💡 Tapez "aide" pour voir les commandes disponibles.\n\n' +
+                '🚀 **Commandes principales:**\n' +
+                '• "produits" - Voir la liste complète\n' +
+                '• "prix pain 300" - Définir un prix\n' +
+                '• "vente 10 pain" - Vente avec calcul auto\n' +
+                '• "stock pain 50" - Gérer le stock';
+        }
+        
+        function handleSaleCommand(message) {
+            var parts = message.split(' ').slice(1); // Enlever "vente"
+            
+            // Format: vente 10 pain 2500 (quantité + produit + montant)
+            if (parts.length === 3 && !isNaN(parts[0]) && isNaN(parts[1]) && !isNaN(parts[2])) {
+                var quantity = parseInt(parts[0]);
+                var product = parts[1];
+                var totalAmount = parseInt(parts[2]);
+                
+                return processSaleWithQuantity(product, quantity, totalAmount);
+            }
+            
+            // Format: vente 10 pain (quantité + produit) - Calcul automatique
+            if (parts.length === 2 && !isNaN(parts[0]) && isNaN(parts[1])) {
+                var quantity = parseInt(parts[0]);
+                var product = parts[1];
+                var unitPrice = productPrices[product];
+                
+                if (unitPrice) {
+                    var totalAmount = quantity * unitPrice;
+                    return processSaleWithQuantity(product, quantity, totalAmount);
+                } else {
+                    return '📦 Vente de ' + quantity + ' ' + product + '\n\n' +
+                        '⚠️ Prix unitaire non défini pour ' + product + '.\n' +
+                        '💡 Options:\n' +
+                        '• Définir le prix: "prix ' + product + ' [montant]"\n' +
+                        '• Ou préciser le montant: "vente ' + quantity + ' ' + product + ' [montant]"';
+                }
+            }
+            
+            // Format: vente pain 500 (produit + montant)
+            if (parts.length === 2 && isNaN(parts[0]) && !isNaN(parts[1])) {
+                var product = parts[0];
+                var amount = parseInt(parts[1]);
+                
+                return processSaleWithAmount(product, amount);
+            }
+            
+            // Format: vente pain (produit seul) - Calcul avec prix unitaire
+            if (parts.length === 1 && isNaN(parts[0])) {
+                var product = parts[0];
+                var unitPrice = productPrices[product];
+                
+                if (unitPrice) {
+                    return processSaleWithAmount(product, unitPrice);
+                } else {
+                    return '📦 Vente de ' + product + '\n\n' +
+                        '⚠️ Prix unitaire non défini pour ' + product + '.\n' +
+                        '💡 Options:\n' +
+                        '• Définir le prix: "prix ' + product + ' [montant]"\n' +
+                        '• Ou préciser le montant: "vente ' + product + ' [montant]"';
+                }
+            }
+            
+            // Format: vente 1000 (montant seul)
+            if (parts.length === 1 && !isNaN(parts[0])) {
+                var amount = parseInt(parts[0]);
+                
+                localTransactions.push({
+                    product: null,
+                    amount: amount,
+                    quantity: 1,
+                    date: new Date()
+                });
+                
+                return '✅ Vente enregistrée: ' + amount + ' CFA';
+            }
+            
+            return '❓ Format de vente non reconnu.\n\n' +
+                '💡 Formats supportés:\n' +
+                '• vente 1000 (montant libre)\n' +
+                '• vente pain (prix unitaire auto)\n' +
+                '• vente pain 500 (produit + montant)\n' +
+                '• vente 10 pain (calcul automatique)\n' +
+                '• vente 10 pain 2500 (quantité + montant)';
+        }
+        
+        function processSaleWithQuantity(product, quantity, totalAmount) {
+            var currentStock = localStock[product] || 0;
+            
+            if (currentStock < quantity) {
+                return '❌ Stock insuffisant pour ' + product + '.\n' +
+                    'Stock disponible: ' + currentStock + ' unités\n' +
+                    'Quantité demandée: ' + quantity + ' unités';
+            }
+            
+            // Décrémenter le stock
+            localStock[product] = currentStock - quantity;
+            
+            // Enregistrer la transaction
+            localTransactions.push({
+                product: product,
+                amount: totalAmount,
+                quantity: quantity,
+                date: new Date()
+            });
+            
+            // Calculer le prix unitaire
+            var unitPrice = Math.round(totalAmount / quantity);
+            
+            var response = '✅ Vente enregistrée:\n';
+            response += '📦 Quantité: ' + quantity + ' ' + product + '\n';
+            response += '💰 Montant total: ' + totalAmount + ' CFA\n';
+            response += '💵 Prix unitaire: ' + unitPrice + ' CFA\n';
+            response += '📊 Stock restant: ' + localStock[product] + ' unités';
+            
+            // Alertes de stock
+            if (localStock[product] === 0) {
+                response += '\n⚠️ ' + product + ' est maintenant en rupture de stock.';
+            } else if (localStock[product] <= 5) {
+                response += '\n⚠️ Stock faible pour ' + product + '.';
+            }
+            
+            return response;
+        }
+        
+        function processSaleWithAmount(product, amount) {
+            var currentStock = localStock[product] || 0;
+            
+            if (currentStock < 1) {
+                return '❌ Stock insuffisant pour ' + product + '.\n' +
+                    'Stock disponible: ' + currentStock + ' unités';
+            }
+            
+            // Décrémenter le stock de 1
+            localStock[product] = currentStock - 1;
+            
+            // Enregistrer la transaction
+            localTransactions.push({
+                product: product,
+                amount: amount,
+                quantity: 1,
+                date: new Date()
+            });
+            
+            var response = '✅ Vente enregistrée: ' + amount + ' CFA (' + product + ')\n';
+            response += '📊 Stock restant: ' + localStock[product] + ' unités';
+            
+            // Alertes de stock
+            if (localStock[product] === 0) {
+                response += '\n⚠️ ' + product + ' est maintenant en rupture de stock.';
+            } else if (localStock[product] <= 5) {
+                response += '\n⚠️ Stock faible pour ' + product + '.';
+            }
+            
+            return response;
+        }
+        
+        function sendMessage() {
+            var input = document.getElementById('messageInput');
+            var message = input.value.trim();
+            
+            if (!message) return;
+            
+            messageCount++;
+            
+            // Afficher le message de l'utilisateur
+            addMessage(message, true);
+            input.value = '';
+            
+            // Afficher un indicateur de frappe
+            var typingDiv = document.createElement('div');
+            typingDiv.className = 'message bot typing';
+            typingDiv.textContent = '🤖 En train de taper...';
+            document.getElementById('chatArea').appendChild(typingDiv);
+            
+            // Simuler un délai de réponse
+            setTimeout(function() {
+                // Supprimer l'indicateur de frappe
+                typingDiv.remove();
+                
+                // Générer la réponse du bot
+                var botResponse = simulateBot(message);
+                addMessage(botResponse);
+                
+                // Mettre à jour le statut
+                updateStatus('✅ Message ' + messageCount + ' traité - Mode offline');
+            }, 500 + Math.random() * 1000);
+        }
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        // Focus automatique sur l'input
+        document.getElementById('messageInput').focus();
+        
+        // Message de bienvenue avec les données initiales
+        setTimeout(function() {
+            var stockList = '';
+            for (var product in localStock) {
+                if (localStock.hasOwnProperty(product)) {
+                    stockList += '• ' + product + ': ' + localStock[product] + ' unités\n';
+                }
+            }
+            
+            var priceList = '';
+            for (var product in productPrices) {
+                if (productPrices.hasOwnProperty(product)) {
+                    priceList += '• ' + product + ': ' + productPrices[product] + ' CFA/unité\n';
+                }
+            }
+            
+            addMessage('📊 **DONNÉES INITIALES CHARGÉES:**\n\n' +
+                '📦 Stock disponible:\n' + stockList + 
+                '\n💰 Prix unitaires:\n' + priceList +
+                '\n💡 Nouvelles fonctionnalités:\n' +
+                '• "produits" - Voir la liste complète\n' +
+                '• "vente 10 pain" - Calcul automatique\n' +
+                '• "prix pain 300" - Définir les prix'
+            );
+        }, 1000);
+    </script>
+</body>
+</html>

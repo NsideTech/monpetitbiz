@@ -15,7 +15,7 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
   database: configService.get('DATABASE_NAME', 'monpetitbiz'),
   entities: [Business, User, OtpSession, Transaction, StockItem],
   migrations: [__dirname + '/../migrations/*{.ts,.js}'],
-  synchronize: configService.get('NODE_ENV') !== 'production',
+  synchronize: false, // Always use migrations for schema changes
   logging: configService.get('NODE_ENV') === 'development',
   ssl: configService.get('NODE_ENV') === 'production' ? { rejectUnauthorized: false } : false,
 });

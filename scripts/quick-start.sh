@@ -42,9 +42,19 @@ if [ ! -f ".env" ]; then
     echo "📝 Creating .env file from template..."
     cp .env.example .env
     echo "⚠️  Please update the .env file with your configuration:"
-    echo "   - Database credentials"
-    echo "   - WhatsApp API tokens"
-    echo "   - JWT secret"
+    echo ""
+    echo "🔧 Required Configuration:"
+    echo "   - Database credentials (DATABASE_*)"
+    echo "   - JWT secret (JWT_SECRET)"
+    echo "   - Twilio credentials (TWILIO_*)"
+    echo ""
+    echo "📱 Twilio Setup Instructions:"
+    echo "   1. Sign up at https://console.twilio.com/"
+    echo "   2. Get your Account SID and Auth Token from the dashboard"
+    echo "   3. For sandbox testing, use: whatsapp:+14155238886"
+    echo "   4. For production, purchase a WhatsApp Business number"
+    echo ""
+    echo "🔍 Configuration will be validated on startup"
     echo ""
     echo "Opening .env file for editing..."
     
@@ -85,17 +95,28 @@ else
     echo "⚠️  Database migrations failed. This might be normal for first run."
 fi
 
-# Start the application
+# Validate configuration before starting
+echo "🔍 Validating configuration..."
+echo "   The application will validate all environment variables on startup"
+echo "   If validation fails, check the error messages and update your .env file"
 echo ""
+
+# Start the application
 echo "🎉 Setup complete! Starting the application..."
 echo ""
 echo "📚 Available endpoints:"
 echo "   - API: http://localhost:3000"
 echo "   - Health: http://localhost:3000/health"
 echo "   - Documentation: http://localhost:3000/api"
+echo "   - Twilio Webhook: http://localhost:3000/whatsapp/twilio/webhook"
 echo ""
 echo "🧪 To test the API:"
 echo "   node test-api.js"
+echo ""
+echo "📱 Twilio Webhook Setup:"
+echo "   1. Start ngrok: ngrok http 3000"
+echo "   2. Copy the HTTPS URL (e.g., https://abc123.ngrok.io)"
+echo "   3. In Twilio Console, set webhook URL to: https://abc123.ngrok.io/whatsapp/twilio/webhook"
 echo ""
 echo "Starting server..."
 

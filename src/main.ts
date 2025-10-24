@@ -3,10 +3,51 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { ConfigurationValidatorService } from './config/configuration-validator.service';
+import { TwilioConfigService } from './config/twilio.config';
 import * as express from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 
 async function bootstrap() {
-    const app = await NestFactory.create(AppModule);
+    console.log('🚀 Starting MonPetitBiz WhatsApp Bot...');
+    
+    // HTTPS Configuration
+    let httpsOptions = null;
+    const useHttps = process.env.USE_HTTPS === 'true';
+    
+    if (useHttps) {
+        const keyPath = process.env.SSL_KEY_PATH || path.join(process.cwd(), 'ssl', 'private-key.pem');
+        const certPath = process.env.SSL_CERT_PATH || path.join(process.cwd(), 'ssl', 'certificate.pem');
+        
+        try {
+            httpsOptions = {
+                key: fs.readFileSync(keyPath),
+                cert: fs.readFileSync(certPath),
+            };
+            console.log('✅ HTTPS certificates loaded successfully');
+        } catch (error) {
+            console.error('❌ Failed to load HTTPS certificates:', error.message);
+            console.log('💡 To generate self-signed certificates, run: npm run generate:ssl');
+            process.exit(1);
+        }
+    }
+
+    const app = await NestFactory.create(AppModule, {
+        httpsOptions,
+    });
+
+    // Validate configuration on startup
+    console.log('🔍 Validating system configuration...');
+    try {
+        const configValidator = app.get(ConfigurationValidatorService);
+        await configValidator.validateConfigurationOrThrow();
+        console.log('✅ Configuration validation completed successfully');
+    } catch (error) {
+        console.error('❌ Configuration validation failed:', error.message);
+        console.error('💡 Please check your environment variables and try again');
+        process.exit(1);
+    }
 
     // Configure raw body parsing for webhook signature verification
     app.use('/whatsapp/webhook', express.raw({ type: 'application/json' }));
@@ -87,7 +128,7 @@ async function bootstrap() {
         .addTag('WhatsApp', 'WhatsApp webhook and messaging')
         .addTag('Health', 'System health and monitoring')
         .addTag('Dashboard', 'Web dashboard API (read-only)')
-        .addServer('http://localhost:3000', 'Development server')
+        .addServer(useHttps ? 'https://localhost:3000' : 'http://localhost:3000', 'Development server')
         .addServer('https://api.monpetitbiz.com', 'Production server')
         .build();
 
@@ -110,10 +151,17 @@ async function bootstrap() {
 
     const configService = app.get(ConfigService);
     const port = configService.get('PORT', 3000);
+    const protocol = useHttps ? 'https' : 'http';
 
     await app.listen(port);
-    console.log(`Application is running on: http://localhost:${port}`);
-    console.log(`API Documentation available at: http://localhost:${port}/api`);
+    console.log(`🚀 Application is running on: ${protocol}://localhost:${port}`);
+    console.log(`📚 API Documentation available at: ${protocol}://localhost:${port}/api`);
+    
+    if (useHttps) {
+        console.log('🔒 HTTPS is enabled');
+    } else {
+        console.log('🔓 HTTP mode (set USE_HTTPS=true for HTTPS)');
+    }
 }
 
 bootstrap();

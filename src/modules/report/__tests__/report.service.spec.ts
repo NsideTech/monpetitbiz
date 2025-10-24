@@ -6,6 +6,8 @@ import { Transaction, TransactionType } from '../../transaction/entities/transac
 import { StockItem } from '../../stock/entities/stock-item.entity';
 import { Business } from '../../auth/entities/business.entity';
 import { ReportPeriod } from '../dto/report.dto';
+import { PDFGenerationService } from '../services/pdf-generation.service';
+import { TwilioWhatsAppService } from '../../whatsapp/services/twilio-whatsapp.service';
 
 describe('ReportService', () => {
   let service: ReportService;
@@ -90,6 +92,18 @@ describe('ReportService', () => {
           provide: getRepositoryToken(Business),
           useValue: {
             findOne: jest.fn(),
+          },
+        },
+        {
+          provide: PDFGenerationService,
+          useValue: {
+            generatePDFReport: jest.fn(),
+          },
+        },
+        {
+          provide: TwilioWhatsAppService,
+          useValue: {
+            sendMessage: jest.fn(),
           },
         },
       ],

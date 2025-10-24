@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CommandParserService, ParsedCommand } from './command-parser.service';
+import { ConversationStateService } from './conversation-state.service';
 import { ProcessedMessage } from '../interfaces/webhook.interface';
 
 export interface NLPResult {
@@ -9,13 +10,23 @@ export interface NLPResult {
   suggestedResponse?: string;
   requiresAuth?: boolean;
   requiresPermission?: string[];
+  isRegistrationIntent?: boolean;
+  registrationContext?: {
+    hasBusinessCode?: boolean;
+    businessCode?: string;
+    isRoleSelection?: boolean;
+    selectedRole?: 'seller' | 'manager';
+    isTypeSelection?: boolean;
+    selectedType?: 'owner' | 'employee';
+  };
 }
 
 export interface UserContext {
   userId?: string;
   businessId?: string;
+  businessName?: string;
   language?: string;
-  role?: 'owner' | 'seller';
+  role?: 'owner' | 'seller' | 'manager';
   isAuthenticated: boolean;
 }
 
@@ -23,7 +34,10 @@ export interface UserContext {
 export class NLPService {
   private readonly logger = new Logger(NLPService.name);
 
-  constructor(private readonly commandParser: CommandParserService) { }
+  constructor(
+    private readonly commandParser: CommandParserService,
+    private readonly conversationStateService: ConversationStateService,
+  ) { }
 
   /**
    * Process a message and return NLP analysis
@@ -35,8 +49,22 @@ export class NLPService {
     this.logger.debug(`Processing message from ${message.from}: "${message.body}"`);
 
     try {
+      // Check if user is in registration flow
+      const isInRegistration = this.conversationStateService.isInRegistration(message.from);
+      const registrationState = this.conversationStateService.getRegistrationState(message.from);
+
+      // Detect registration intent
+      const registrationContext = this.detectRegistrationIntent(message.body, registrationState);
+      const isRegistrationIntent = registrationContext.isRegistrationIntent || isInRegistration;
+
       // Parse the command
       const command = this.commandParser.parseMessage(message.body, userContext.language);
+
+      // If it's a registration intent, override command type
+      if (isRegistrationIntent && !userContext.isAuthenticated) {
+        command.type = 'registration';
+        command.confidence = 0.9;
+      }
 
       // Validate the command
       const validation = this.commandParser.validateCommand(command);
@@ -54,6 +82,8 @@ export class NLPService {
         suggestedResponse,
         requiresAuth: authCheck.requiresAuth,
         requiresPermission: authCheck.requiredPermissions,
+        isRegistrationIntent,
+        registrationContext,
       };
 
       this.logger.debug(`NLP result for message ${message.messageId}:`, {
@@ -61,6 +91,7 @@ export class NLPService {
         confidence: command.confidence,
         isValid: result.isValid,
         requiresAuth: result.requiresAuth,
+        isRegistrationIntent: result.isRegistrationIntent,
       });
 
       return result;
@@ -82,6 +113,104 @@ export class NLPService {
   }
 
   /**
+   * Detect registration intent from message content and conversation state
+   */
+  private detectRegistrationIntent(
+    message: string,
+    registrationState: any
+  ): {
+    isRegistrationIntent: boolean;
+    hasBusinessCode?: boolean;
+    businessCode?: string;
+    isRoleSelection?: boolean;
+    selectedRole?: 'seller' | 'manager';
+    isTypeSelection?: boolean;
+    selectedType?: 'owner' | 'employee';
+  } {
+    const normalizedMessage = message.toLowerCase().trim();
+
+    // If user is already in registration flow, it's always a registration intent
+    if (registrationState) {
+      const context: any = { isRegistrationIntent: true };
+
+      // Detect specific registration contexts based on current step
+      switch (registrationState.step) {
+        case 'type_selection':
+          context.isTypeSelection = true;
+          if (normalizedMessage === '1' || normalizedMessage.includes('propriétaire')) {
+            context.selectedType = 'owner';
+          } else if (normalizedMessage === '2' || normalizedMessage.includes('employé')) {
+            context.selectedType = 'employee';
+          }
+          break;
+
+        case 'role_selection':
+          context.isRoleSelection = true;
+          if (normalizedMessage === '1' || normalizedMessage.includes('vendeur')) {
+            context.selectedRole = 'seller';
+          } else if (normalizedMessage === '2' || normalizedMessage.includes('manager')) {
+            context.selectedRole = 'manager';
+          }
+          break;
+
+        case 'employee_info':
+          // Check if message contains a business code
+          const businessCodePattern = /\b[A-Z0-9]{6}\b/i;
+          const businessCodeMatch = message.match(businessCodePattern);
+          if (businessCodeMatch) {
+            context.hasBusinessCode = true;
+            context.businessCode = businessCodeMatch[0].toUpperCase();
+          }
+          break;
+      }
+
+      return context;
+    }
+
+    // Registration keywords in French and Wolof
+    const registrationKeywords = [
+      // French greetings and registration terms
+      'bonjour', 'salut', 'bonsoir', 'hello', 'hi',
+      'inscription', 'enregistrement', 'créer compte', 'nouveau compte',
+      'commencer', 'démarrer',
+      'propriétaire', 'employé', 'patron', 'boss',
+      'code entreprise', 'code business', 'code invitation',
+
+      // Wolof greetings
+      'nanga def', 'asalamu aleykum', 'salaam aleykum',
+      'damay bëgg', 'bëgg naa'
+    ];
+
+    // Check for exact matches or partial matches
+    const hasKeyword = registrationKeywords.some(keyword =>
+      normalizedMessage.includes(keyword)
+    );
+
+    // Check for business code pattern (6 alphanumeric characters)
+    const businessCodePattern = /\b[A-Z0-9]{6}\b/i;
+    const businessCodeMatch = message.match(businessCodePattern);
+    const hasBusinessCode = !!businessCodeMatch;
+
+    // Check for greeting patterns
+    const greetingPatterns = [
+      /^(bonjour|salut|bonsoir|hello|hi)$/i,
+      /^(nanga def|asalamu aleykum|salaam aleykum)$/i
+    ];
+    const isGreeting = greetingPatterns.some(pattern => pattern.test(normalizedMessage));
+
+    const isRegistrationIntent = hasKeyword || hasBusinessCode || isGreeting;
+
+    const context: any = { isRegistrationIntent };
+
+    if (hasBusinessCode && businessCodeMatch) {
+      context.hasBusinessCode = true;
+      context.businessCode = businessCodeMatch[0].toUpperCase();
+    }
+
+    return context;
+  }
+
+  /**
    * Check authentication and permissions for a command
    */
   private checkAuthAndPermissions(
@@ -99,7 +228,7 @@ export class NLPService {
     const requiredPermissions: string[] = [];
 
     // Commands that don't require authentication
-    const publicCommands = ['unknown'];
+    const publicCommands = ['unknown', 'registration', 'help'];
 
     if (!publicCommands.includes(command.type)) {
       requiresAuth = true;
@@ -123,12 +252,20 @@ export class NLPService {
       case 'expense':
       case 'balance':
       case 'report':
-        // Only owner can perform these actions
+        // Only owner and manager can perform these actions
         requiredPermissions.push('finance:manage');
-        if (userContext.role !== 'owner') {
+        if (userContext.role !== 'owner' && userContext.role !== 'manager') {
           hasPermission = false;
-          errors.push('Action réservée au propriétaire');
+          errors.push('Action réservée au propriétaire et aux managers');
         }
+        break;
+
+      case 'registration':
+        // Registration doesn't require specific permissions
+        break;
+
+      case 'help':
+        // Help commands don't require specific permissions
         break;
 
       case 'unknown':

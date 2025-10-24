@@ -115,12 +115,12 @@ describe('User Entity', () => {
   });
 
   describe('Phone Number Validation', () => {
-    it('should accept valid Senegalese phone numbers', () => {
+    it('should accept valid Burkina phone numbers', () => {
       const validPhoneNumbers = [
-        '+221701234567',
-        '+221771234567',
-        '+221781234567',
-        '+221331234567'
+        '+226701234567',
+        '+226771234567',
+        '+226781234567',
+        '+226331234567'
       ];
 
       validPhoneNumbers.forEach(phoneNumber => {

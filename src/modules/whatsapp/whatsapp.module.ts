@@ -9,6 +9,22 @@ import { MessageParserService } from './services/message-parser.service';
 import { MessageQueueService } from './services/message-queue.service';
 import { CommandParserService } from './services/command-parser.service';
 import { NLPService } from './services/nlp.service';
+import { ConversationStateService } from './services/conversation-state.service';
+import { RegistrationHandlerService } from './services/registration-handler.service';
+import { ConflictResolutionService } from './services/conflict-resolution.service';
+import { OnboardingMessagesService } from './services/onboarding-messages.service';
+import { OnboardingCheckMiddleware } from './middleware/onboarding-check.middleware';
+import { HelpService } from './services/help.service';
+import { TwilioMessageParser } from './services/twilio-message-parser.service';
+import { TwilioWebhookController } from './controllers/twilio-webhook.controller';
+import { WebhookTestController } from './controllers/webhook-test.controller';
+import { TwilioConfigService } from '../../config/twilio.config';
+import { TwilioWhatsAppService } from './services/twilio-whatsapp.service';
+import { TwilioErrorHandlerService } from './services/twilio-error-handler.service';
+import { TwilioLoggerService } from './services/twilio-logger.service';
+import { DualProviderService } from './services/dual-provider.service';
+import { MigrationValidationService } from './services/migration-validation.service';
+import { MigrationValidationController } from './controllers/migration-validation.controller';
 import { AuthModule } from '../auth/auth.module';
 import { TransactionModule } from '../transaction/transaction.module';
 import { StockModule } from '../stock/stock.module';
@@ -30,9 +46,22 @@ import { ReportModule } from '../report/report.module';
     MessageQueueService,
     CommandParserService,
     NLPService,
+    ConversationStateService,
+    RegistrationHandlerService,
+    ConflictResolutionService,
+    OnboardingMessagesService,
+    OnboardingCheckMiddleware,
+    HelpService,
+    TwilioMessageParser,
+    TwilioConfigService,
+    TwilioErrorHandlerService,
+    TwilioLoggerService,
+    TwilioWhatsAppService,
+    DualProviderService,
+    MigrationValidationService,
   ],
-  controllers: [WhatsappController, HealthController],
-  exports: [WhatsappService, BotController, MessageQueueService, NLPService, CommandParserService],
+  controllers: [WhatsappController, HealthController, TwilioWebhookController, WebhookTestController, MigrationValidationController],
+  exports: [WhatsappService, BotController, MessageQueueService, NLPService, CommandParserService, ConversationStateService, RegistrationHandlerService, ConflictResolutionService, OnboardingMessagesService, OnboardingCheckMiddleware, TwilioMessageParser, TwilioLoggerService, TwilioWhatsAppService, DualProviderService, MigrationValidationService],
 })
 export class WhatsappModule implements OnModuleInit {
   constructor(

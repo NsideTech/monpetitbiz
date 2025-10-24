@@ -5,6 +5,8 @@ export { OtpSession } from './entities/otp-session.entity';
 
 // Services
 export { AuthService } from './auth.service';
+export { PhoneValidationService } from './services/phone-validation.service';
+export type { PhoneValidationResult, PhoneNumberStatus } from './services/phone-validation.service';
 
 // Guards
 export { JwtAuthGuard } from './guards/jwt-auth.guard';

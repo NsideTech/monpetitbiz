@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Transaction, TransactionType } from '../transaction/entities/transaction.entity';
@@ -12,10 +12,12 @@ import {
   GenerateReportDto 
 } from './dto/report.dto';
 import { PDFGenerationService, PDFResult } from './services/pdf-generation.service';
-import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { TwilioWhatsAppService } from '../whatsapp/services/twilio-whatsapp.service';
 
 @Injectable()
 export class ReportService {
+  private readonly logger = new Logger(ReportService.name);
+
   constructor(
     @InjectRepository(Transaction)
     private transactionRepository: Repository<Transaction>,
@@ -24,8 +26,7 @@ export class ReportService {
     @InjectRepository(Business)
     private businessRepository: Repository<Business>,
     private pdfGenerationService: PDFGenerationService,
-    @Inject(forwardRef(() => WhatsappService))
-    private whatsappService: WhatsappService,
+    private twilioWhatsAppService: TwilioWhatsAppService,
   ) {}
 
   /**
@@ -375,7 +376,7 @@ export class ReportService {
   }
 
   /**
-   * Generate and send PDF report via WhatsApp
+   * Generate and send PDF report via WhatsApp using Twilio SDK
    */
   async generateAndSendPDFReport(
     businessId: string, 
@@ -383,6 +384,8 @@ export class ReportService {
     period: ReportPeriod
   ): Promise<{ success: boolean; message: string }> {
     try {
+      this.logger.log(`Generating PDF report for business ${businessId}, period: ${period}`);
+
       // Generate PDF report
       const pdfResult = await this.generatePDFReport({
         businessId,
@@ -392,9 +395,11 @@ export class ReportService {
       });
 
       if (!pdfResult.success) {
+        this.logger.warn(`PDF generation failed for business ${businessId}: ${pdfResult.error}`);
+        
         // Fallback to text report if PDF generation fails
         const textReport = await this.generateTextReport(businessId, period);
-        await this.whatsappService.sendMessage(
+        await this.twilioWhatsAppService.sendMessage(
           userPhoneNumber,
           `Impossible de générer le PDF. Voici votre rapport en texte:\n\n${textReport}`
         );
@@ -405,28 +410,50 @@ export class ReportService {
         };
       }
 
-      // Send PDF via WhatsApp
-      await this.whatsappService.sendPDFDocument(
-        userPhoneNumber,
-        pdfResult.url!,
-        pdfResult.fileName!,
-        `Voici votre rapport financier pour la période: ${period}`
-      );
+      this.logger.log(`PDF generated successfully: ${pdfResult.fileName}, sending via Twilio`);
 
-      return {
-        success: true,
-        message: 'Rapport PDF envoyé avec succès'
-      };
-    } catch (error) {
-      // Final fallback - send error message
+      // Send PDF via Twilio WhatsApp with proper error handling
       try {
-        await this.whatsappService.sendMessage(
+        const messageInstance = await this.twilioWhatsAppService.sendMedia(
+          userPhoneNumber,
+          pdfResult.url!,
+          `Voici votre rapport financier pour la période: ${period}`,
+          pdfResult.fileName!
+        );
+
+        this.logger.log(`PDF report sent successfully via Twilio: ${messageInstance.sid}`);
+
+        return {
+          success: true,
+          message: 'Rapport PDF envoyé avec succès'
+        };
+      } catch (twilioError) {
+        this.logger.error(`Twilio media sending failed: ${twilioError.message}`);
+        
+        // If Twilio media sending fails, try sending as text fallback
+        const textReport = await this.generateTextReport(businessId, period);
+        await this.twilioWhatsAppService.sendMessage(
+          userPhoneNumber,
+          `Erreur d'envoi du PDF. Voici votre rapport en texte:\n\n${textReport}`
+        );
+        
+        return {
+          success: true,
+          message: 'PDF généré mais envoyé en format texte (erreur d\'envoi média)'
+        };
+      }
+
+    } catch (error) {
+      this.logger.error(`Report generation/sending failed for business ${businessId}:`, error);
+      
+      // Final fallback - send error message via Twilio
+      try {
+        await this.twilioWhatsAppService.sendMessage(
           userPhoneNumber,
           'Désolé, impossible de générer le rapport pour le moment. Veuillez réessayer plus tard.'
         );
       } catch (sendError) {
-        // Log but don't throw - we don't want to fail completely
-        console.error('Failed to send error message:', sendError);
+        this.logger.error('Failed to send error message via Twilio:', sendError);
       }
 
       return {

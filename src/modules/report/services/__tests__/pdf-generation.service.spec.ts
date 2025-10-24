@@ -59,8 +59,11 @@ describe('PDFGenerationService', () => {
       const mockBusiness: Business = {
         id: '123e4567-e89b-12d3-a456-426614174000',
         name: 'Test Business',
+        businessCode: 'ABC123',
         currency: 'XOF',
         timezone: 'Africa/Dakar',
+        ownerName: 'Test Owner',
+        country: 'SEN',
         createdAt: new Date(),
         users: [],
         transactions: [],
@@ -121,8 +124,11 @@ describe('PDFGenerationService', () => {
       const mockBusiness: Business = {
         id: '123e4567-e89b-12d3-a456-426614174000',
         name: 'Test Business',
+        businessCode: 'DEF456',
         currency: 'XOF',
         timezone: 'Africa/Dakar',
+        ownerName: 'Test Owner',
+        country: 'SEN',
         createdAt: new Date(),
         users: [],
         transactions: [],

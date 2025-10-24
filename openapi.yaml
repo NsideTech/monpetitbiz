@@ -65,10 +65,10 @@ paths:
                   example: "+221123456789"
                   description: Phone number in international format
             examples:
-              senegal:
-                summary: Senegal phone number
+              burkina:
+                summary: Burkina Faso phone number
                 value:
-                  phoneNumber: "+221123456789"
+                  phoneNumber: "+226123456789"
               mali:
                 summary: Mali phone number  
                 value:
@@ -140,8 +140,9 @@ paths:
     post:
       tags:
         - Authentication
-      summary: Register new user and business
-      description: Creates a new user account with associated business
+      summary: Register new user and business (Legacy)
+      description: Creates a new user account with associated business (Legacy endpoint - use specific registration endpoints instead)
+      deprecated: true
       requestBody:
         required: true
         content:
@@ -184,6 +185,421 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/register-business-owner:
+    post:
+      tags:
+        - Authentication
+      summary: Register business owner
+      description: |
+        Creates a new business owner account with an automatically generated business code.
+        The business code is used by employees to join the business during their registration.
+        
+        **Process:**
+        1. Validates phone number and business information
+        2. Creates new business with unique 6-character code
+        3. Creates owner user account linked to the business
+        4. Returns business code for sharing with employees
+        
+        **Business Code Format:**
+        - 6 characters (A-Z, 2-9)
+        - Excludes confusing characters (0/O, 1/I/L)
+        - Unique across all businesses
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phoneNumber
+                - businessName
+                - ownerName
+              properties:
+                phoneNumber:
+                  type: string
+                  pattern: '^\+[1-9]\d{1,14}$'
+                  example: "+221123456789"
+                  description: Phone number in international format
+                businessName:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: "Boutique Fatou"
+                  description: Name of the business
+                ownerName:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: "Fabrice Ilboudo"
+                  description: Full name of the business owner
+                language:
+                  type: string
+                  enum: [fr, wo]
+                  default: fr
+                  example: "fr"
+                  description: Preferred language for communication
+            examples:
+              burkina_business:
+                summary: Burkina Faso business registration
+                value:
+                  phoneNumber: "+226123456789"
+                  businessName: "Boutique Fatou"
+                  ownerName: "Fabrice Ilboudo"
+                  language: "fr"
+              mali_business:
+                summary: Mali business registration
+                value:
+                  phoneNumber: "+223987654321"
+                  businessName: "Magasin Aminata"
+                  ownerName: "Aminata Traoré"
+                  language: "fr"
+      responses:
+        '201':
+          description: Business owner registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  business:
+                    $ref: '#/components/schemas/BusinessWithCode'
+                  accessToken:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    description: JWT access token for authentication
+                  message:
+                    type: string
+                    example: "Entreprise créée avec succès! Partagez le code ABC123 avec vos employés."
+              examples:
+                success_response:
+                  summary: Successful registration
+                  value:
+                    user:
+                      id: "123e4567-e89b-12d3-a456-426614174000"
+                      phoneNumber: "+221123456789"
+                      employeeName: "Fabrice Ilboudo"
+                      role: "owner"
+                      language: "fr"
+                      isActive: true
+                    business:
+                      id: "456e7890-e89b-12d3-a456-426614174001"
+                      name: "Boutique Fatou"
+                      businessCode: "ABC123"
+                      currency: "XOF"
+                      timezone: "Africa/Dakar"
+                    accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    message: "Entreprise créée avec succès! Partagez le code ABC123 avec vos employés."
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_phone:
+                  summary: Invalid phone number
+                  value:
+                    statusCode: 400
+                    message: "Numéro de téléphone invalide. Format attendu: +221XXXXXXXXX"
+                    error: "Bad Request"
+                invalid_business_name:
+                  summary: Invalid business name
+                  value:
+                    statusCode: 400
+                    message: "Le nom de l'entreprise doit contenir entre 2 et 100 caractères"
+                    error: "Bad Request"
+        '409':
+          description: Phone number already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                duplicate_phone:
+                  summary: Phone number already exists
+                  value:
+                    statusCode: 409
+                    message: "Ce numéro de téléphone est déjà enregistré"
+                    error: "Conflict"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                server_error:
+                  summary: Server error
+                  value:
+                    statusCode: 500
+                    message: "Erreur lors de la création de l'entreprise. Veuillez réessayer."
+                    error: "Internal Server Error"
+
+  /auth/register-employee:
+    post:
+      tags:
+        - Authentication
+      summary: Register employee with business code
+      description: |
+        Registers a new employee using a business code provided by their employer.
+        The business code must be valid and belong to an existing business.
+        
+        **Process:**
+        1. Validates phone number and business code format
+        2. Verifies business code exists in database
+        3. Creates employee user account linked to the business
+        4. Assigns role-based permissions (seller or manager)
+        
+        **Role Permissions:**
+        - **Seller**: Record sales, view stock levels
+        - **Manager**: All seller permissions + record expenses, manage stock, view reports
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phoneNumber
+                - businessCode
+                - employeeName
+                - role
+              properties:
+                phoneNumber:
+                  type: string
+                  pattern: '^\+[1-9]\d{1,14}$'
+                  example: "+221987654321"
+                  description: Phone number in international format
+                businessCode:
+                  type: string
+                  pattern: '^[A-Z2-9]{6}$'
+                  example: "ABC123"
+                  description: 6-character business code provided by employer
+                employeeName:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: "Moussa Sow"
+                  description: Full name of the employee
+                role:
+                  type: string
+                  enum: [seller, manager]
+                  example: "seller"
+                  description: Employee role determining access permissions
+                language:
+                  type: string
+                  enum: [fr, wo]
+                  default: fr
+                  example: "fr"
+                  description: Preferred language for communication
+            examples:
+              seller_registration:
+                summary: Seller registration
+                value:
+                  phoneNumber: "+221987654321"
+                  businessCode: "ABC123"
+                  employeeName: "Moussa Sow"
+                  role: "seller"
+                  language: "fr"
+              manager_registration:
+                summary: Manager registration
+                value:
+                  phoneNumber: "+223456789123"
+                  businessCode: "XYZ789"
+                  employeeName: "Aissata Keita"
+                  role: "manager"
+                  language: "fr"
+      responses:
+        '201':
+          description: Employee registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  business:
+                    $ref: '#/components/schemas/Business'
+                  accessToken:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    description: JWT access token for authentication
+                  permissions:
+                    type: array
+                    items:
+                      type: string
+                    example: ["record_sales", "view_stock"]
+                    description: List of permissions granted to the employee
+                  message:
+                    type: string
+                    example: "Inscription réussie! Vous êtes maintenant vendeur chez Boutique Fatou."
+              examples:
+                seller_success:
+                  summary: Seller registration success
+                  value:
+                    user:
+                      id: "789e1234-e89b-12d3-a456-426614174002"
+                      phoneNumber: "+221987654321"
+                      employeeName: "Moussa Sow"
+                      role: "seller"
+                      language: "fr"
+                      isActive: true
+                    business:
+                      id: "456e7890-e89b-12d3-a456-426614174001"
+                      name: "Boutique Fatou"
+                      currency: "XOF"
+                      timezone: "Africa/Dakar"
+                    accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    permissions: ["record_sales", "view_stock"]
+                    message: "Inscription réussie! Vous êtes maintenant vendeur chez Boutique Fatou."
+                manager_success:
+                  summary: Manager registration success
+                  value:
+                    user:
+                      id: "abc1234-e89b-12d3-a456-426614174003"
+                      phoneNumber: "+223456789123"
+                      employeeName: "Aissata Keita"
+                      role: "manager"
+                      language: "fr"
+                      isActive: true
+                    business:
+                      id: "def5678-e89b-12d3-a456-426614174004"
+                      name: "Magasin Aminata"
+                      currency: "XOF"
+                      timezone: "Africa/Dakar"
+                    accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    permissions: ["record_sales", "record_expenses", "manage_stock", "view_reports"]
+                    message: "Inscription réussie! Vous êtes maintenant manager chez Magasin Aminata."
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_code_format:
+                  summary: Invalid business code format
+                  value:
+                    statusCode: 400
+                    message: "Code d'entreprise invalide. Format attendu: 6 caractères (ex: ABC123)"
+                    error: "Bad Request"
+                invalid_role:
+                  summary: Invalid role
+                  value:
+                    statusCode: 400
+                    message: "Rôle invalide. Choisissez 'seller' ou 'manager'"
+                    error: "Bad Request"
+        '404':
+          description: Business code not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                code_not_found:
+                  summary: Business code doesn't exist
+                  value:
+                    statusCode: 404
+                    message: "Code d'entreprise inexistant. Vérifiez avec votre employeur."
+                    error: "Not Found"
+        '409':
+          description: Phone number already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                duplicate_phone:
+                  summary: Phone number already exists
+                  value:
+                    statusCode: 409
+                    message: "Ce numéro de téléphone est déjà enregistré"
+                    error: "Conflict"
+
+  /auth/business/{code}:
+    get:
+      tags:
+        - Authentication
+      summary: Get business information by code
+      description: |
+        Retrieves business information using a business code for validation purposes.
+        This endpoint is used by employees to verify their business code before registration.
+        
+        **Use Cases:**
+        - Employee verification of business code during registration
+        - Displaying business name for confirmation
+        - Validating business code format and existence
+      parameters:
+        - name: code
+          in: path
+          required: true
+          description: 6-character business code
+          schema:
+            type: string
+            pattern: '^[A-Z2-9]{6}$'
+            example: "ABC123"
+          examples:
+            valid_code:
+              summary: Valid business code
+              value: "ABC123"
+            another_code:
+              summary: Another valid code
+              value: "XYZ789"
+      responses:
+        '200':
+          description: Business information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  business:
+                    $ref: '#/components/schemas/BusinessInfo'
+                  message:
+                    type: string
+                    example: "Entreprise trouvée: Boutique Fatou"
+              examples:
+                business_found:
+                  summary: Business found
+                  value:
+                    business:
+                      id: "456e7890-e89b-12d3-a456-426614174001"
+                      name: "Boutique Fatou"
+                      businessCode: "ABC123"
+                      employeeCount: 3
+                      currency: "XOF"
+                      timezone: "Africa/Dakar"
+                    message: "Entreprise trouvée: Boutique Fatou"
+        '400':
+          description: Invalid business code format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_format:
+                  summary: Invalid code format
+                  value:
+                    statusCode: 400
+                    message: "Format de code invalide. Attendu: 6 caractères (ex: ABC123)"
+                    error: "Bad Request"
+        '404':
+          description: Business code not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                code_not_found:
+                  summary: Code not found
+                  value:
+                    statusCode: 404
+                    message: "Code d'entreprise inexistant. Vérifiez avec votre employeur."
+                    error: "Not Found"
 
   # WhatsApp Endpoints
   /whatsapp/webhook:
@@ -323,6 +739,215 @@ paths:
                 value:
                   from: "221123456789"
                   message: "bilan jour"
+
+  /whatsapp/twilio/webhook:
+    post:
+      tags:
+        - WhatsApp
+      summary: Receive Twilio WhatsApp messages (Primary)
+      description: |
+        Primary webhook endpoint for processing incoming WhatsApp messages from Twilio Programmable Messaging API.
+        This endpoint handles webhook signature verification and processes messages using Twilio's native format.
+        
+        **Webhook Configuration:**
+        - URL: `https://yourdomain.com/whatsapp/twilio/webhook`
+        - Method: POST
+        - Content-Type: application/x-www-form-urlencoded
+        - Signature verification: X-Twilio-Signature header
+        
+        **Message Processing:**
+        - Extracts phone numbers from Twilio format (whatsapp:+number)
+        - Uses MessageSid for deduplication
+        - Processes business commands (sales, expenses, stock, reports)
+        - Handles user registration and authentication
+      parameters:
+        - name: X-Twilio-Signature
+          in: header
+          description: Twilio webhook signature for payload verification
+          required: true
+          schema:
+            type: string
+            example: "sha256=abc123..."
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TwilioWebhookPayload'
+            examples:
+              sale_command:
+                summary: Sale command from Twilio
+                value:
+                  MessageSid: "SM1234567890abcdef1234567890abcdef"
+                  AccountSid: "AC1234567890abcdef1234567890abcdef"
+                  From: "whatsapp:+221123456789"
+                  To: "whatsapp:+14155238886"
+                  Body: "vente pain 1500"
+                  ProfileName: "Fabrice Ilboudo"
+                  WaId: "221123456789"
+                  SmsStatus: "received"
+              expense_command:
+                summary: Expense command from Twilio
+                value:
+                  MessageSid: "SM9876543210fedcba9876543210fedcba"
+                  AccountSid: "AC1234567890abcdef1234567890abcdef"
+                  From: "whatsapp:+221987654321"
+                  To: "whatsapp:+14155238886"
+                  Body: "dépense 2000 marchandise"
+                  ProfileName: "Moussa Sow"
+                  WaId: "221987654321"
+                  SmsStatus: "received"
+              registration:
+                summary: User registration
+                value:
+                  MessageSid: "SM5555555555abcdef5555555555abcdef"
+                  AccountSid: "AC1234567890abcdef1234567890abcdef"
+                  From: "whatsapp:+221555666777"
+                  To: "whatsapp:+14155238886"
+                  Body: "bonjour"
+                  ProfileName: "Nouveau Utilisateur"
+                  WaId: "221555666777"
+                  SmsStatus: "received"
+      responses:
+        '200':
+          description: Message processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Message processed successfully"
+                  messageId:
+                    type: string
+                    example: "SM1234567890abcdef1234567890abcdef"
+                    description: "Twilio MessageSid for tracking"
+        '400':
+          description: Invalid webhook payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_payload:
+                  summary: Invalid payload format
+                  value:
+                    statusCode: 400
+                    message: "Invalid webhook payload format"
+                    error: "Bad Request"
+        '401':
+          description: Invalid webhook signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_signature:
+                  summary: Signature verification failed
+                  value:
+                    statusCode: 401
+                    message: "Invalid webhook signature"
+                    error: "Unauthorized"
+        '500':
+          description: Internal server error during message processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /whatsapp/twilio:
+    post:
+      tags:
+        - WhatsApp
+      summary: Receive Twilio WhatsApp messages (Legacy)
+      description: |
+        Legacy webhook endpoint for Twilio WhatsApp messages. 
+        **Deprecated**: Use `/whatsapp/twilio/webhook` instead.
+        
+        This endpoint is maintained for backward compatibility but may be removed in future versions.
+      deprecated: true
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TwilioWebhookPayload'
+      responses:
+        '200':
+          description: Message processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Message processed successfully"
+
+  /whatsapp/test-twilio:
+    post:
+      tags:
+        - WhatsApp
+      summary: Test Twilio WhatsApp webhook format (Development only)
+      description: Test endpoint that simulates a Twilio WhatsApp webhook for development purposes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - from
+                - message
+              properties:
+                from:
+                  type: string
+                  example: "+221123456789"
+                  description: "Phone number without whatsapp: prefix"
+                message:
+                  type: string
+                  example: "vente pain 1500"
+                  description: "Message content"
+                profileName:
+                  type: string
+                  example: "John Doe"
+                  description: "WhatsApp profile name (optional)"
+            examples:
+              test_sale:
+                summary: Test sale command
+                value:
+                  from: "+221123456789"
+                  message: "vente pain 1500"
+                  profileName: "Test User"
+              test_registration:
+                summary: Test registration
+                value:
+                  from: "+221987654321"
+                  message: "bonjour"
+                  profileName: "New User"
+      responses:
+        '200':
+          description: Test message processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  twilioPayload:
+                    type: object
+                  result:
+                    type: object
       responses:
         '200':
           description: Test message processed
@@ -441,7 +1066,8 @@ paths:
       tags:
         - Health
       summary: WhatsApp service health
-      description: Health check specific to WhatsApp integration
+      description: Health check specific to WhatsApp integration (legacy endpoint)
+      deprecated: true
       responses:
         '200':
           description: WhatsApp service health
@@ -455,6 +1081,158 @@ paths:
                     enum: [healthy, degraded, unhealthy]
                   timestamp:
                     type: string
+
+  /health/twilio:
+    get:
+      tags:
+        - Health
+      summary: Twilio service health check
+      description: |
+        Comprehensive health check for Twilio WhatsApp integration including:
+        - Twilio API connectivity
+        - Account status and credentials validation
+        - WhatsApp number configuration
+        - Webhook endpoint accessibility
+        - Message sending capability
+      responses:
+        '200':
+          description: Twilio service health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                    example: "healthy"
+                    description: "Overall Twilio service health status"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+                  checks:
+                    type: object
+                    properties:
+                      apiConnectivity:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            enum: [pass, fail]
+                            example: "pass"
+                          responseTime:
+                            type: number
+                            example: 150
+                            description: "API response time in milliseconds"
+                          lastChecked:
+                            type: string
+                            format: date-time
+                      accountStatus:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            enum: [pass, fail]
+                            example: "pass"
+                          accountSid:
+                            type: string
+                            example: "AC1234567890abcdef1234567890abcdef"
+                          accountStatus:
+                            type: string
+                            example: "active"
+                      whatsappNumber:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            enum: [pass, fail]
+                            example: "pass"
+                          number:
+                            type: string
+                            example: "whatsapp:+14155238886"
+                          verified:
+                            type: boolean
+                            example: true
+                      webhookEndpoint:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            enum: [pass, fail]
+                            example: "pass"
+                          url:
+                            type: string
+                            example: "https://yourdomain.com/whatsapp/twilio/webhook"
+                          accessible:
+                            type: boolean
+                            example: true
+                  metrics:
+                    type: object
+                    properties:
+                      messagesLast24h:
+                        type: number
+                        example: 150
+                        description: "Messages sent in last 24 hours"
+                      successRate:
+                        type: number
+                        example: 98.5
+                        description: "Message success rate percentage"
+                      averageResponseTime:
+                        type: number
+                        example: 200
+                        description: "Average API response time in milliseconds"
+                      errorRate:
+                        type: number
+                        example: 1.5
+                        description: "Error rate percentage"
+              examples:
+                healthy:
+                  summary: Healthy Twilio service
+                  value:
+                    status: "healthy"
+                    timestamp: "2024-01-15T10:30:00Z"
+                    checks:
+                      apiConnectivity:
+                        status: "pass"
+                        responseTime: 150
+                        lastChecked: "2024-01-15T10:30:00Z"
+                      accountStatus:
+                        status: "pass"
+                        accountSid: "AC1234567890abcdef1234567890abcdef"
+                        accountStatus: "active"
+                      whatsappNumber:
+                        status: "pass"
+                        number: "whatsapp:+14155238886"
+                        verified: true
+                      webhookEndpoint:
+                        status: "pass"
+                        url: "https://yourdomain.com/whatsapp/twilio/webhook"
+                        accessible: true
+                    metrics:
+                      messagesLast24h: 150
+                      successRate: 98.5
+                      averageResponseTime: 200
+                      errorRate: 1.5
+        '503':
+          description: Twilio service unhealthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "unhealthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                  error:
+                    type: string
+                    example: "Twilio API connectivity failed"
+                  checks:
+                    type: object
+                    description: "Failed health checks"
                     format: date-time
                   queue:
                     type: object
@@ -519,10 +1297,15 @@ components:
         businessId:
           type: string
           format: uuid
+        employeeName:
+          type: string
+          example: "Fabrice Ilboudo"
+          description: Display name for the employee/owner
         role:
           type: string
-          enum: [owner, seller]
+          enum: [owner, seller, manager]
           example: "owner"
+          description: User role determining access permissions
         language:
           type: string
           enum: [fr, wo]
@@ -539,18 +1322,63 @@ components:
         id:
           type: string
           format: uuid
+          example: "456e7890-e89b-12d3-a456-426614174001"
         name:
           type: string
           example: "Boutique Fatou"
+          description: Business name
         currency:
           type: string
           example: "XOF"
+          description: Business currency code
         timezone:
           type: string
           example: "Africa/Dakar"
+          description: Business timezone
+
+    BusinessWithCode:
+      allOf:
+        - $ref: '#/components/schemas/Business'
+        - type: object
+          properties:
+            businessCode:
+              type: string
+              pattern: '^[A-Z2-9]{6}$'
+              example: "ABC123"
+              description: Unique 6-character business code for employee invitations
+
+    BusinessInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "456e7890-e89b-12d3-a456-426614174001"
+        name:
+          type: string
+          example: "Boutique Fatou"
+          description: Business name
+        businessCode:
+          type: string
+          pattern: '^[A-Z2-9]{6}$'
+          example: "ABC123"
+          description: Business code
+        employeeCount:
+          type: integer
+          example: 3
+          description: Number of employees in the business
+        currency:
+          type: string
+          example: "XOF"
+          description: Business currency code
+        timezone:
+          type: string
+          example: "Africa/Dakar"
+          description: Business timezone
 
     WebhookPayload:
       type: object
+      description: Meta WhatsApp Cloud API webhook payload (legacy)
       properties:
         object:
           type: string
@@ -602,6 +1430,85 @@ components:
                     field:
                       type: string
                       example: "messages"
+
+    TwilioWebhookPayload:
+      type: object
+      description: Twilio Programmable Messaging webhook payload for WhatsApp messages
+      required:
+        - MessageSid
+        - AccountSid
+        - From
+        - To
+        - Body
+        - WaId
+      properties:
+        MessageSid:
+          type: string
+          description: Unique identifier for the message
+          example: "SM1234567890abcdef1234567890abcdef"
+          pattern: '^SM[a-f0-9]{32}$'
+        AccountSid:
+          type: string
+          description: Twilio Account SID
+          example: "AC1234567890abcdef1234567890abcdef"
+          pattern: '^AC[a-f0-9]{32}$'
+        From:
+          type: string
+          description: Sender's WhatsApp number in Twilio format
+          example: "whatsapp:+221123456789"
+          pattern: '^whatsapp:\+[1-9]\d{1,14}$'
+        To:
+          type: string
+          description: Recipient's WhatsApp number in Twilio format
+          example: "whatsapp:+14155238886"
+          pattern: '^whatsapp:\+[1-9]\d{1,14}$'
+        Body:
+          type: string
+          description: Message content
+          example: "vente pain 1500"
+          maxLength: 1600
+        ProfileName:
+          type: string
+          description: WhatsApp profile name of the sender (optional)
+          example: "Fabrice Ilboudo"
+          maxLength: 256
+        WaId:
+          type: string
+          description: WhatsApp ID (phone number without country code formatting)
+          example: "221123456789"
+          pattern: '^\d{10,15}$'
+        SmsStatus:
+          type: string
+          description: Message status from Twilio
+          enum: [received, sent, delivered, failed, undelivered]
+          example: "received"
+        NumMedia:
+          type: string
+          description: Number of media attachments (optional)
+          example: "0"
+          pattern: '^\d+$'
+        MediaUrl0:
+          type: string
+          description: URL of first media attachment (if NumMedia > 0)
+          format: uri
+          example: "https://api.twilio.com/2010-04-01/Accounts/.../Messages/.../Media/..."
+        MediaContentType0:
+          type: string
+          description: Content type of first media attachment
+          example: "image/jpeg"
+        MessageStatus:
+          type: string
+          description: Current status of the message
+          enum: [accepted, queued, sending, sent, failed, delivered, undelivered, receiving, received]
+          example: "received"
+        ErrorCode:
+          type: string
+          description: Error code if message failed (optional)
+          example: "30008"
+        ErrorMessage:
+          type: string
+          description: Error message if message failed (optional)
+          example: "Unknown error"
 
     HealthResponse:
       type: object
@@ -729,3 +1636,36 @@ components:
         - "bilan semaine"
         - "bilan mois"
         - "rapport PDF"
+
+    RegistrationCommands:
+      summary: Registration command examples
+      value:
+        - "bonjour"
+        - "inscription"
+        - "je veux m'inscrire"
+        - "j'ai un code d'entreprise"
+        - "ABC123"
+
+    BusinessCodes:
+      summary: Business code examples
+      value:
+        - "ABC123"
+        - "XYZ789"
+        - "DEF456"
+        - "GHJ234"
+
+    RegistrationErrors:
+      summary: Common registration error scenarios
+      value:
+        invalid_business_code:
+          code: "abc123"
+          error: "Code d'entreprise invalide. Format attendu: 6 caractères majuscules (ex: ABC123)"
+        nonexistent_code:
+          code: "ZZZ999"
+          error: "Code d'entreprise inexistant. Vérifiez avec votre employeur."
+        duplicate_phone:
+          phoneNumber: "+221123456789"
+          error: "Ce numéro de téléphone est déjà enregistré"
+        invalid_phone:
+          phoneNumber: "123456789"
+          error: "Numéro de téléphone invalide. Format attendu: +221XXXXXXXXX"

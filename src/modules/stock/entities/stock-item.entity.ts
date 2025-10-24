@@ -17,6 +17,9 @@ export class StockItem {
   @Column({ type: 'integer', default: 0 })
   quantity: number;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true, name: 'unit_price' })
+  unitPrice: number;
+
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 

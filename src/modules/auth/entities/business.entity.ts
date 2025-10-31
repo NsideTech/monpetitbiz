@@ -2,6 +2,8 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany, In
 import { User } from './user.entity';
 import { Transaction } from '../../transaction/entities/transaction.entity';
 import { StockItem } from '../../stock/entities/stock-item.entity';
+import { ProductUnit } from '../../stock/entities/product-unit.entity';
+import { StockMovement } from '../../stock/entities/stock-movement.entity';
 
 @Entity('businesses')
 @Index('IDX_businesses_country', ['country'])
@@ -12,7 +14,7 @@ export class Business {
   @Column({ type: 'varchar', length: 255, nullable: false })
   name: string;
 
-  @Column({ type: 'varchar', length: 6, unique: true, nullable: false })
+  @Column({ name: 'business_code', type: 'varchar', length: 6, unique: true, nullable: false })
   businessCode: string;
 
   @Column({ type: 'varchar', length: 3, default: 'XOF' })
@@ -39,4 +41,10 @@ export class Business {
 
   @OneToMany(() => StockItem, stockItem => stockItem.business)
   stockItems: StockItem[];
+
+  @OneToMany(() => ProductUnit, productUnit => productUnit.business)
+  productUnits: ProductUnit[];
+
+  @OneToMany(() => StockMovement, stockMovement => stockMovement.business)
+  stockMovements: StockMovement[];
 }

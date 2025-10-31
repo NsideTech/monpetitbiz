@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "buildCommand": "rm -rf node_modules && npm install && npm run build",
+  "installCommand": "npm install",
+  "outputDirectory": ".",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production",
+    "DISABLE_PUPPETEER": "true"
+  },
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  }
+}

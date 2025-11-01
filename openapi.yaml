@@ -779,7 +779,7 @@ paths:
                 summary: Sale command from Twilio
                 value:
                   MessageSid: "SM1234567890abcdef1234567890abcdef"
-                  AccountSid: "AC1234567890abcdef1234567890abcdef"
+                  AccountSid: "xxxxxxxxxxxxxxxxx"
                   From: "whatsapp:+226123456789"
                   To: "whatsapp:+14155238886"
                   Body: "vente pain 1500"
@@ -790,7 +790,7 @@ paths:
                 summary: Expense command from Twilio
                 value:
                   MessageSid: "SM9876543210fedcba9876543210fedcba"
-                  AccountSid: "AC1234567890abcdef1234567890abcdef"
+                  AccountSid: "xxxxxxxxxxxxxxxxx"
                   From: "whatsapp:+226987654321"
                   To: "whatsapp:+14155238886"
                   Body: "dépense 2000 marchandise"

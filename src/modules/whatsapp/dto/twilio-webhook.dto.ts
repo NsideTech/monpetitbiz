@@ -11,7 +11,7 @@ export class TwilioWebhookPayloadDto {
 
   @ApiProperty({
     description: 'Twilio Account SID',
-    example: 'AC1234567890abcdef1234567890abcdef'
+    example: 'xxxxxxxxxxxxxxxxx'
   })
   @IsString()
   AccountSid: string;

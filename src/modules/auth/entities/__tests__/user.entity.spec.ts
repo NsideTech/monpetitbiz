@@ -21,7 +21,7 @@ describe('User Entity', () => {
       
       // Set properties to test they exist
       user.id = 'test-id';
-      user.phoneNumber = '+221701234567';
+      user.phoneNumber = '+226701234567';
       user.businessId = 'business-id';
       user.role = UserRole.OWNER;
       user.language = 'fr';
@@ -31,7 +31,7 @@ describe('User Entity', () => {
       user.transactions = [];
 
       expect(user.id).toBe('test-id');
-      expect(user.phoneNumber).toBe('+221701234567');
+      expect(user.phoneNumber).toBe('+226701234567');
       expect(user.businessId).toBe('business-id');
       expect(user.role).toBe(UserRole.OWNER);
       expect(user.language).toBe('fr');
@@ -74,13 +74,13 @@ describe('User Entity', () => {
 
   describe('Property Validation', () => {
     it('should accept valid user data', () => {
-      user.phoneNumber = '+221701234567';
+      user.phoneNumber = '+226701234567';
       user.role = UserRole.OWNER;
       user.businessId = 'business-uuid';
       user.language = 'fr';
       user.isActive = true;
 
-      expect(user.phoneNumber).toBe('+221701234567');
+      expect(user.phoneNumber).toBe('+226701234567');
       expect(user.role).toBe(UserRole.OWNER);
       expect(user.businessId).toBe('business-uuid');
       expect(user.language).toBe('fr');
@@ -88,9 +88,9 @@ describe('User Entity', () => {
     });
 
     it('should validate phone number uniqueness constraint', () => {
-      user.phoneNumber = '+221701234567';
+      user.phoneNumber = '+226701234567';
       // In a real database scenario, duplicate phone numbers would be rejected
-      expect(user.phoneNumber).toBe('+221701234567');
+      expect(user.phoneNumber).toBe('+226701234567');
     });
 
     it('should validate phone number length constraint', () => {
@@ -218,9 +218,9 @@ describe('User Entity', () => {
 
   describe('Index Constraints', () => {
     it('should have unique index on phoneNumber', () => {
-      user.phoneNumber = '+221701234567';
+      user.phoneNumber = '+226701234567';
       // In a real database scenario, this would be enforced by unique index
-      expect(user.phoneNumber).toBe('+221701234567');
+      expect(user.phoneNumber).toBe('+226701234567');
     });
   });
 });

@@ -5,16 +5,58 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { StockService } from '../stock.service';
 import { StockItem } from '../entities/stock-item.entity';
+import { ProductNormalizerService } from '../services/product-normalizer.service';
+import { StockMovementService } from '../services/stock-movement.service';
+import { UnitManagementService } from '../services/unit-management.service';
+import { UnitConversionService } from '../services/unit-conversion.service';
 
 describe('StockService', () => {
   let service: StockService;
   let stockItemRepository: Repository<StockItem>;
+  let productNormalizerService: ProductNormalizerService;
+  let stockMovementService: StockMovementService;
+  let unitManagementService: UnitManagementService;
+  let unitConversionService: UnitConversionService;
 
   const mockStockItemRepository = {
     findOne: jest.fn(),
     find: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
+  };
+
+  const mockProductNormalizerService = {
+    normalize: jest.fn((product: string) => product.trim().toLowerCase()),
+    findBestMatch: jest.fn((product: string, products: string[]) => {
+      return products.find(p => p === product) || null;
+    }),
+  };
+
+  const mockStockMovementService = {
+    recordMovement: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const mockUnitManagementService = {
+    getProductUnits: jest.fn().mockResolvedValue(null),
+    getProductPriceInfo: jest.fn().mockResolvedValue({
+      productName: 'test',
+      purchasePrice: undefined,
+      unitCostInBaseUnit: undefined,
+      sellingPrice: undefined,
+      profitMargin: undefined,
+      recommendedSellingPrice: undefined,
+    }),
+    checkStockAlert: jest.fn().mockResolvedValue({
+      shouldAlert: false,
+      thresholdInBaseUnits: 1,
+    }),
+  };
+
+  const mockUnitConversionService = {
+    convertToBaseUnit: jest.fn((quantity: number) => quantity),
+    convertFromBaseUnit: jest.fn((quantity: number) => quantity),
+    formatStockDisplay: jest.fn((quantity: number) => `${quantity} pièce${quantity > 1 ? 's' : ''}`),
+    validateUnit: jest.fn().mockReturnValue(true),
   };
 
   beforeEach(async () => {
@@ -25,11 +67,31 @@ describe('StockService', () => {
           provide: getRepositoryToken(StockItem),
           useValue: mockStockItemRepository,
         },
+        {
+          provide: ProductNormalizerService,
+          useValue: mockProductNormalizerService,
+        },
+        {
+          provide: StockMovementService,
+          useValue: mockStockMovementService,
+        },
+        {
+          provide: UnitManagementService,
+          useValue: mockUnitManagementService,
+        },
+        {
+          provide: UnitConversionService,
+          useValue: mockUnitConversionService,
+        },
       ],
     }).compile();
 
     service = module.get<StockService>(StockService);
     stockItemRepository = module.get<Repository<StockItem>>(getRepositoryToken(StockItem));
+    productNormalizerService = module.get<ProductNormalizerService>(ProductNormalizerService);
+    stockMovementService = module.get<StockMovementService>(StockMovementService);
+    unitManagementService = module.get<UnitManagementService>(UnitManagementService);
+    unitConversionService = module.get<UnitConversionService>(UnitConversionService);
   });
 
   afterEach(() => {
@@ -178,7 +240,9 @@ describe('StockService', () => {
         updatedAt: new Date(),
       };
 
-      mockStockItemRepository.findOne.mockResolvedValue(stockItem);
+      // Mock the find method to return existing stock items
+      mockStockItemRepository.find.mockResolvedValue([stockItem]);
+      mockProductNormalizerService.findBestMatch.mockReturnValue('pain');
       mockStockItemRepository.save.mockResolvedValue({
         ...stockItem,
         quantity: 8,
@@ -205,7 +269,9 @@ describe('StockService', () => {
         updatedAt: new Date(),
       };
 
-      mockStockItemRepository.findOne.mockResolvedValue(stockItem);
+      // Mock the find method to return existing stock items
+      mockStockItemRepository.find.mockResolvedValue([stockItem]);
+      mockProductNormalizerService.findBestMatch.mockReturnValue('pain');
       mockStockItemRepository.save.mockResolvedValue({
         ...stockItem,
         quantity: 0,
@@ -224,7 +290,9 @@ describe('StockService', () => {
       const product = 'NonExistent';
       const quantity = 1;
 
-      mockStockItemRepository.findOne.mockResolvedValue(null);
+      // Mock empty stock items and no match found
+      mockStockItemRepository.find.mockResolvedValue([]);
+      mockProductNormalizerService.findBestMatch.mockReturnValue(null);
 
       const result = await service.decrementStock(businessId, product, quantity);
 
@@ -240,7 +308,7 @@ describe('StockService', () => {
       const result = await service.decrementStock(businessId, product, quantity);
 
       expect(result).toBe(false);
-      expect(mockStockItemRepository.findOne).not.toHaveBeenCalled();
+      expect(mockStockItemRepository.find).not.toHaveBeenCalled();
     });
   });
 
@@ -287,7 +355,9 @@ describe('StockService', () => {
         quantity: 15,
       };
 
-      mockStockItemRepository.findOne.mockResolvedValue(stockItem);
+      // Mock the find method to return existing stock items
+      mockStockItemRepository.find.mockResolvedValue([stockItem]);
+      mockProductNormalizerService.findBestMatch.mockReturnValue('pain');
 
       const result = await service.getStockLevel(businessId, product);
 
@@ -298,7 +368,9 @@ describe('StockService', () => {
       const businessId = 'business-id';
       const product = 'NonExistent';
 
-      mockStockItemRepository.findOne.mockResolvedValue(null);
+      // Mock empty stock items and no match found
+      mockStockItemRepository.find.mockResolvedValue([]);
+      mockProductNormalizerService.findBestMatch.mockReturnValue(null);
 
       const result = await service.getStockLevel(businessId, product);
 
@@ -312,7 +384,7 @@ describe('StockService', () => {
       const result = await service.getStockLevel(businessId, product);
 
       expect(result).toBe(0);
-      expect(mockStockItemRepository.findOne).not.toHaveBeenCalled();
+      expect(mockStockItemRepository.find).not.toHaveBeenCalled();
     });
   });
 });

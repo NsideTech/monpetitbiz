@@ -92,7 +92,7 @@ describe('AuthService', () => {
 
   describe('sendOTP', () => {
     it('should generate and save OTP session', async () => {
-      const phoneNumber = '+221123456789';
+      const phoneNumber = '+226123456789';
       mockOtpSessionRepository.save.mockResolvedValue({});
 
       const result = await service.sendOTP(phoneNumber);
@@ -100,7 +100,7 @@ describe('AuthService', () => {
       expect(result).toBe('OTP sent successfully');
       expect(mockOtpSessionRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          phoneNumber: '+221123456789',
+          phoneNumber: '+226123456789',
           code: expect.stringMatching(/^\d{6}$/),
           expiresAt: expect.any(Date),
           attempts: 0,
@@ -111,7 +111,7 @@ describe('AuthService', () => {
 
   describe('verifyOTP', () => {
     it('should verify valid OTP and return auth result', async () => {
-      const phoneNumber = '+221123456789';
+      const phoneNumber = '+226123456789';
       const code = '123456';
       const mockOtpSession = {
         phoneNumber,
@@ -144,7 +144,7 @@ describe('AuthService', () => {
     });
 
     it('should throw error for invalid OTP', async () => {
-      const phoneNumber = '+221123456789';
+      const phoneNumber = '+226123456789';
       const code = '123456';
       const mockOtpSession = {
         phoneNumber,
@@ -164,7 +164,7 @@ describe('AuthService', () => {
     });
 
     it('should throw error for expired OTP', async () => {
-      const phoneNumber = '+221123456789';
+      const phoneNumber = '+226123456789';
       const code = '123456';
       const mockOtpSession = {
         phoneNumber,
@@ -184,14 +184,14 @@ describe('AuthService', () => {
   describe('registerUser', () => {
     it('should register new user with business', async () => {
       const registerDto = {
-        phoneNumber: '+221123456789',
+        phoneNumber: '+226123456789',
         businessName: 'Test Business',
         role: UserRole.OWNER,
         language: 'fr',
       };
 
       const mockBusiness = { id: 'business-id', name: 'Test Business' };
-      const mockUser = { id: 'user-id', phoneNumber: '+221123456789' };
+      const mockUser = { id: 'user-id', phoneNumber: '+226123456789' };
 
       mockUserRepository.findOne.mockResolvedValue(null); // User doesn't exist
       mockBusinessRepository.create.mockReturnValue(mockBusiness);
@@ -220,7 +220,7 @@ describe('AuthService', () => {
         timezone: 'Africa/Dakar',
       });
       expect(mockUserRepository.create).toHaveBeenCalledWith({
-        phoneNumber: '+221123456789',
+        phoneNumber: '+226123456789',
         businessId: 'business-id',
         role: UserRole.OWNER,
         language: 'fr',
@@ -230,7 +230,7 @@ describe('AuthService', () => {
 
     it('should throw error if user already exists', async () => {
       const registerDto = {
-        phoneNumber: '+221123456789',
+        phoneNumber: '+226123456789',
         businessName: 'Test Business',
         role: UserRole.OWNER,
       };

@@ -75,7 +75,7 @@ describe('RegistrationHandlerService - Messages Integration', () => {
 
     describe('Error Message Integration', () => {
         it('should use OnboardingMessagesService for technical errors', async () => {
-            const phoneNumber = '+221701234567';
+            const phoneNumber = '+226701234567';
             const message = 'créer une nouvelle entreprise';
 
             // Mock conversation state to throw an error
@@ -102,7 +102,7 @@ describe('RegistrationHandlerService - Messages Integration', () => {
 
     describe('Help Message Integration', () => {
         it('should use OnboardingMessagesService for step help', async () => {
-            const phoneNumber = '+221701234567';
+            const phoneNumber = '+226701234567';
             const message = 'aide';
 
             // Mock conversation state to return business name step
@@ -127,7 +127,7 @@ describe('RegistrationHandlerService - Messages Integration', () => {
 
     describe('Session Expiration Integration', () => {
         it('should use OnboardingMessagesService for session expiration', async () => {
-            const phoneNumber = '+221701234567';
+            const phoneNumber = '+226701234567';
             const message = 'test';
 
             // Mock conversation state to return expired session
@@ -154,7 +154,7 @@ describe('RegistrationHandlerService - Messages Integration', () => {
 
     describe('Cancellation Message Integration', () => {
         it('should use OnboardingMessagesService for cancellation', async () => {
-            const phoneNumber = '+221701234567';
+            const phoneNumber = '+226701234567';
             const message = 'stop';
 
             // Mock conversation state to return business name step
@@ -181,7 +181,7 @@ describe('RegistrationHandlerService - Messages Integration', () => {
 
     describe('Success Message Integration', () => {
         it('should use OnboardingMessagesService for success confirmation', async () => {
-            const phoneNumber = '+221701234567';
+            const phoneNumber = '+226701234567';
             const message = 'confirmer';
 
             // Mock conversation state to return confirmation step with data

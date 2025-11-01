@@ -21,7 +21,7 @@ async function testEntities() {
     business.timezone = 'Africa/Dakar';
     
     const user = new User();
-    user.phoneNumber = '+221701234567';
+    user.phoneNumber = '+226701234567';
     user.role = UserRole.OWNER;
     user.language = 'fr';
     user.isActive = true;

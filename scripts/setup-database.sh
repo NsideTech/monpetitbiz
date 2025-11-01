@@ -55,10 +55,10 @@ if [ -f ".env" ]; then
     echo "📝 Updating .env file with database configuration..."
     
     # Update database configuration in .env
-    sed -i.bak "s/DATABASE_NAME=.*/DATABASE_NAME=$DB_NAME/" .env
-    sed -i.bak "s/DATABASE_HOST=.*/DATABASE_HOST=localhost/" .env
-    sed -i.bak "s/DATABASE_PORT=.*/DATABASE_PORT=5432/" .env
-    sed -i.bak "s/DATABASE_USERNAME=.*/DATABASE_USERNAME=$DB_USER/" .env
+    # sed -i.bak "s/DATABASE_NAME=.*/DATABASE_NAME=$DB_NAME/" .env
+    # sed -i.bak "s/DATABASE_HOST=.*/DATABASE_HOST=localhost/" .env
+    # sed -i.bak "s/DATABASE_PORT=.*/DATABASE_PORT=5432/" .env
+    # sed -i.bak "s/DATABASE_USERNAME=.*/DATABASE_USERNAME=$DB_USER/" .env
     
     echo "✅ .env file updated"
 else

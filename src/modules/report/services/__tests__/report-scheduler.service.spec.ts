@@ -27,11 +27,13 @@ describe('ReportSchedulerService', () => {
     users: [],
     transactions: [],
     stockItems: [],
+    productUnits: [],
+    stockMovements: [],
   };
 
   const mockUser: User = {
     id: 'user-1',
-    phoneNumber: '+221701234567',
+    phoneNumber: '+226701234567',
     employeeName: null,
     businessId: 'business-1',
     role: UserRole.OWNER,
@@ -116,8 +118,9 @@ describe('ReportSchedulerService', () => {
       // Assert
       expect(reportService.generateDailyReport).toHaveBeenCalledWith('business-1');
       expect(whatsappService.sendMessage).toHaveBeenCalledWith(
-        '+221701234567',
-        expect.stringContaining('Rapport quotidien')
+        '+226701234567',
+        expect.stringMatching(/Rapport quotidien/),
+        'twilio'
       );
     });
 
@@ -133,8 +136,9 @@ describe('ReportSchedulerService', () => {
 
       // Assert
       expect(whatsappService.sendMessage).toHaveBeenCalledWith(
-        '+221701234567',
-        expect.stringContaining('Aucune activité aujourd\'hui')
+        '+226701234567',
+        expect.stringMatching(/Aucune activité aujourd'hui/),
+        'twilio'
       );
     });
 

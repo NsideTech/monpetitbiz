@@ -202,7 +202,7 @@ describe('DashboardService', () => {
           product: 'pain',
           description: 'Vente de pain',
           createdAt: new Date('2023-01-01'),
-          user: { phoneNumber: '+221123456789' },
+          user: { phoneNumber: '+226123456789' },
         },
       ];
 

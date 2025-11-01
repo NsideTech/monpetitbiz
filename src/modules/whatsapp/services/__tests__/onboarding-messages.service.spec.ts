@@ -22,7 +22,7 @@ describe('OnboardingMessagesService', () => {
         businessName: 'Boutique Fatou',
         ownerName: 'Fabrice Ilboudo',
         businessCode: 'ABC123',
-        phoneNumber: '+221701234567',
+        phoneNumber: '+226701234567',
         country: 'SN'
       };
 

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 export interface ParsedCommand {
-  type: 'sale' | 'expense' | 'stock' | 'stock_query' | 'product_list' | 'price_set' | 'balance' | 'report' | 'registration' | 'help' | 'unknown';
+  type: 'sale' | 'expense' | 'stock' | 'stock_query' | 'product_list' | 'price_set' | 'balance' | 'report' | 'registration' | 'help' | 'unknown' | 'unit_config' | 'unit_view' | 'unit_stock' | 'unit_price_purchase' | 'unit_price_selling' | 'unit_alert' | 'unit_history' | 'unit_price_view' | 'product_delete' | 'confirm_delete' | 'cart_create' | 'cart_add' | 'cart_remove' | 'cart_view' | 'cart_finalize' | 'cart_cancel' | 'transaction_list';
   amount?: number;
   quantity?: number; // For sales by quantity (e.g., "vente 10 pain")
   product?: string;
@@ -14,6 +14,16 @@ export interface ParsedCommand {
   confidence: number;
   originalText: string;
   language: string;
+  // Unit-specific fields
+  unit?: string;
+  baseUnit?: string;
+  purchaseUnit?: string;
+  conversionFactor?: number;
+  threshold?: number;
+  margin?: number;
+  // Transaction list fields
+  transactionType?: 'sale' | 'expense' | 'all';
+  limit?: number;
 }
 
 export interface LanguagePatterns {
@@ -28,6 +38,24 @@ export interface LanguagePatterns {
   help: RegExp[];
   amounts: RegExp[];
   products: RegExp;
+  // Unit command patterns
+  unitConfig: RegExp[];
+  unitView: RegExp[];
+  unitStock: RegExp[];
+  unitPricePurchase: RegExp[];
+  unitPriceSelling: RegExp[];
+  unitAlert: RegExp[];
+  unitHistory: RegExp[];
+  unitPriceView: RegExp[];
+  productDelete: RegExp[];
+  confirmDelete: RegExp[];
+  cartCreate: RegExp[];
+  cartAdd: RegExp[];
+  cartRemove: RegExp[];
+  cartView: RegExp[];
+  cartFinalize: RegExp[];
+  cartCancel: RegExp[];
+  transactionList: RegExp[];
 }
 
 @Injectable()
@@ -96,6 +124,7 @@ export class CommandParserService {
       /^(?:aide|help)\s+(vente|ventes|sales?)$/i,
       /^(?:aide|help)\s+(dépense|dépenses|depense|depenses|expense|expenses)$/i,
       /^(?:aide|help)\s+(stock|stocks|inventaire)$/i,
+      /^(?:aide|help)\s+(unité|unités|unite|unites|unit|units)$/i,
       /^(?:aide|help)\s+(rapport|rapports|report|reports)$/i,
       /^(?:aide|help)\s+(commande|commandes|command|commands)$/i,
       /^(?:comment|how)\s+(?:faire|to|do)\s*(.*)$/i,
@@ -105,41 +134,118 @@ export class CommandParserService {
       /(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f|francs?)?/gi,
     ],
     products: /(?:pain|riz|huile|sucre|lait|eau|savon|café|thé|biscuit|bonbon|cigarette|allumette|pile|crédit|credit|recharge|top\s*up)/gi,
+
+    // Unit command patterns
+    unitConfig: [
+      // Format: produit unité [produit] achat [unité_achat] [facteur] [unité_base]
+      /^(?:produit|product)\s+(?:unité|unite|unit)\s+(\w+)\s+(?:achat|purchase)\s+(\w+)\s+(\d+)\s+(\w+)$/i,
+    ],
+    unitView: [
+      // Format: produit unité [produit]
+      /^(?:produit|product)\s+(?:unité|unite|unit)\s+(\w+)$/i,
+    ],
+    unitStock: [
+      // Format: stock [produit] [quantité] [unité]
+      /^(?:stock|maj stock|update stock)\s+(\w+)\s+(\d+(?:[.,]\d+)?)\s+(\w+)$/i,
+    ],
+    unitPricePurchase: [
+      // Format: prix achat [produit] [prix] [unité]
+      /^(?:prix|price)\s+(?:achat|purchase|buy)\s+(\w+)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s+(\w+)$/i,
+    ],
+    unitPriceSelling: [
+      // Format: prix vente [produit] [marge]%
+      /^(?:prix|price)\s+(?:vente|sell|sale)\s+(\w+)\s+(\d+(?:[.,]\d+)?)%$/i,
+    ],
+    unitAlert: [
+      // Format: alerte [produit] [seuil] [unité]
+      /^(?:alerte|alert)\s+(\w+)\s+(\d+(?:[.,]\d+)?)\s+(\w+)$/i,
+    ],
+    unitHistory: [
+      // Format: historique [produit]
+      /^(?:historique|history)\s+(\w+)$/i,
+    ],
+    unitPriceView: [
+      // Format: prix [produit]
+      /^(?:prix|price)\s+(\w+)$/i,
+    ],
+    productDelete: [
+      // Format: supprimer [produit], supprimer produit [produit], delete [produit]
+      /^(?:supprimer|delete|effacer|remove)\s+(?:produit\s+)?(\w+)$/i,
+      /^(?:produit\s+)?(?:supprimer|delete|effacer|remove)\s+(\w+)$/i,
+    ],
+    confirmDelete: [
+      // Format: confirmer, oui, yes
+      /^(?:confirmer|confirm|oui|yes|ok)$/i,
+    ],
+    cartCreate: [
+      // Format: panier, nouveau panier, créer panier, cart
+      /^(?:panier|nouveau panier|créer panier|cart|new cart|create cart)$/i,
+    ],
+    cartAdd: [
+      // Format: [produit] [quantité] (dans le contexte d'un panier actif)
+      /^(\w+)\s+(\d+(?:[.,]\d+)?)$/i,
+      // Format: + [produit] [quantité] (raccourci)
+      /^\+\s+(\w+)\s+(\d+(?:[.,]\d+)?)$/i,
+    ],
+    cartRemove: [
+      // Format: retirer [produit], remove [produit], enlever [produit]
+      /^(?:retirer|remove|enlever|supprimer)\s+(\w+)$/i,
+      // Format: - [produit]
+      /^-\s+(\w+)$/i,
+    ],
+    cartView: [
+      // Format: voir, contenu, show, view
+      /^(?:voir|contenu|show|view|voir panier|show cart)$/i,
+    ],
+    cartFinalize: [
+      // Format: finaliser, finalize, terminer, valider
+      /^(?:finaliser|finalize|terminer|valider|confirmer vente)$/i,
+    ],
+    cartCancel: [
+      // Format: annuler, cancel, annuler panier
+      /^(?:annuler|cancel|annuler panier|cancel cart)$/i,
+    ],
+    transactionList: [
+      // Format: transactions, transactions jour, ventes jour, liste ventes
+      /^(?:transactions?|liste transactions?)$/i,
+      /^(?:transactions?|liste transactions?)\s+(jour|today|semaine|week|mois|month)$/i,
+      /^(?:ventes?|sales?)\s+(jour|today|semaine|week|mois|month)$/i,
+      /^(?:liste\s+)?(?:ventes?|sales?)$/i,
+      /^(?:dépenses?|depenses?|expenses?)\s+(jour|today|semaine|week|mois|month)$/i,
+      /^(?:liste\s+)?(?:dépenses?|depenses?|expenses?)$/i,
+    ],
   };
 
-  // Wolof patterns (basic support)
-  // private readonly wolofPatterns: LanguagePatterns = {
+  // TODO: Add Mooré (Burkina Faso) language support
+  // Mooré patterns for Burkina Faso users
+  // Examples: "koose 1000" (vendre), "rãmde 500" (acheter), "stock rĩis" (stock riz)
+  // private readonly morePatterns: LanguagePatterns = {
   //   sale: [
-  //     /^(?:jaay|sell)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s*(.*)$/i,
+  //     /^(?:koose|vendre)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s*(.*)$/i,
   //   ],
   //   expense: [
-  //     /^(?:jënd|buy|acheté)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s*(.*)$/i,
+  //     /^(?:rãmde|acheter)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s*(.*)$/i,
   //   ],
   //   stock: [
   //     /^(?:stock|réserve)\s+(.+?)\s+(\d+)$/i,
   //   ],
-  //   stockQuery: [
-  //     /^(?:stock|réserve)\s+(.+)$/i,
-  //     /^(?:stock|réserve)$/i,
-  //   ],
   //   balance: [
-  //     /^(?:bilan|compte)\s+(tey|aujourd'hui|today)$/i,
-  //     /^(?:bilan|compte)\s+(ayu-bis|semaine|week)$/i,
-  //     /^(?:bilan|compte)\s+(weer|mois|month)$/i,
-  //     /^(?:bilan|compte)$/i,
+  //     /^(?:compte|bilan)\s+(tɩ|aujourd'hui)$/i,
   //   ],
-  //   report: [
-  //     /^(?:rapport|report)$/i,
+  //   products: /(?:rĩis|koom|burukutu|pɛɛn|galga)/gi,
+  // };
+
+  // TODO: Add Dioula (Mali/Côte d'Ivoire) language support  
+  // Dioula patterns for West African users
+  // Examples: "feereli 1000" (vendre), "san 500" (acheter)
+  // private readonly dioulaPatterns: LanguagePatterns = {
+  //   sale: [
+  //     /^(?:feereli|vendre)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s*(.*)$/i,
   //   ],
-  //   help: [
-  //     /^(?:ndimbal|aide|help)$/i,
-  //     /^(?:ndimbal|aide|help)\s+(jaay|vente)$/i,
-  //     /^(?:ndimbal|aide|help)\s+(jënd|dépense)$/i,
+  //   expense: [
+  //     /^(?:san|acheter)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s*(.*)$/i,
   //   ],
-  //   amounts: [
-  //     /(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f|francs?)?/gi,
-  //   ],
-  //   products: /(?:mburu|ceeb|néré|ataya|café|lait|pain|riz)/gi,
+  //   products: /(?:malo|ji|kini|taba)/gi,
   // };
 
   /**
@@ -159,6 +265,32 @@ export class CommandParserService {
     let result = this.tryParseHelp(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
+    // Try unit commands first (higher specificity than basic commands)
+    result = this.tryParseUnitConfig(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseUnitStock(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseUnitPricePurchase(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseUnitPriceSelling(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseUnitAlert(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseUnitHistory(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseUnitView(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseUnitPriceView(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    // Try basic commands
     result = this.tryParseSale(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
@@ -169,6 +301,32 @@ export class CommandParserService {
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
     result = this.tryParseStockQuery(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseProductDelete(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseConfirmDelete(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    // Cart commands (high priority)
+    result = this.tryParseCartCreate(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseCartView(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseCartFinalize(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseCartCancel(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseCartRemove(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    // Cart add should be checked with context (will be handled in bot controller)
+    result = this.tryParseCartAdd(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
     result = this.tryParseProductList(cleanText, patterns);
@@ -183,6 +341,9 @@ export class CommandParserService {
     result = this.tryParseReport(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
+    result = this.tryParseTransactionList(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
     // Fallback: try to extract amount and product for generic parsing
     const fallbackResult = this.tryFallbackParsing(cleanText, patterns);
     return { ...fallbackResult, originalText: text, language: detectedLanguage } as ParsedCommand;
@@ -192,6 +353,7 @@ export class CommandParserService {
    * Detect language from text
    */
   private detectLanguage(text: string, userPreference?: string): string {
+    // TODO: Add support for more languages: mooré ('mo') and dioula ('di')
     // If user has a language preference, use it
     if (userPreference && ['fr', 'wo'].includes(userPreference)) {
       return userPreference;
@@ -199,11 +361,27 @@ export class CommandParserService {
 
     // Simple language detection based on keywords
     const frenchKeywords = /\b(vente|vendu|dépense|depense|bilan|rapport|stock|j'ai|pour|avec|sans|aujourd'hui|semaine|mois)\b/i;
-    const wolofKeywords = /\b(jaay|jënd|tey|ayu-bis|weer|mburu|ceeb|ataya)\b/i;
+    // const wolofKeywords = /\b(jaay|jënd|tey|ayu-bis|weer|mburu|ceeb|ataya)\b/i;
 
-    if (wolofKeywords.test(text)) {
-      return 'wo';
-    }
+    // TODO: Add Mooré keywords detection
+    // const moreKeywords = /\b(koose|rãmde|tɩ|galga|rĩis|koom|burukutu|pɛɛn|barka)\b/i;
+
+    // TODO: Add Dioula keywords detection  
+    // const dioulaKeywords = /\b(feereli|san|malo|ji|kini|taba|nba)\b/i;
+
+    // if (wolofKeywords.test(text)) {
+    //   return 'wo';
+    // }
+
+    // TODO: Uncomment when mooré support is implemented
+    // if (moreKeywords.test(text)) {
+    //   return 'mo';
+    // }
+
+    // TODO: Uncomment when dioula support is implemented
+    // if (dioulaKeywords.test(text)) {
+    //   return 'di';
+    // }
 
     if (frenchKeywords.test(text)) {
       return 'fr';
@@ -220,6 +398,15 @@ export class CommandParserService {
     switch (language) {
       // case 'wo':
       //   return this.wolofPatterns;
+
+      // TODO: Add mooré language support
+      // case 'mo':
+      //   return this.morePatterns;
+
+      // TODO: Add dioula language support
+      // case 'di':
+      //   return this.dioulaPatterns;
+
       case 'fr':
       default:
         return this.frenchPatterns;
@@ -492,6 +679,153 @@ export class CommandParserService {
   }
 
   /**
+   * Try to parse as product delete command
+   */
+  private tryParseProductDelete(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.productDelete) {
+      const match = text.match(pattern);
+      if (match) {
+        const product = match[1]?.trim();
+
+        return {
+          type: 'product_delete',
+          product,
+          confidence: 0.9,
+        };
+      }
+    }
+
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as confirm delete command
+   */
+  private tryParseConfirmDelete(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.confirmDelete) {
+      const match = text.match(pattern);
+      if (match) {
+        return {
+          type: 'confirm_delete',
+          confidence: 0.9,
+        };
+      }
+    }
+
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as cart create command
+   */
+  private tryParseCartCreate(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.cartCreate) {
+      const match = text.match(pattern);
+      if (match) {
+        return {
+          type: 'cart_create',
+          confidence: 0.9,
+        };
+      }
+    }
+
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as cart add command
+   */
+  private tryParseCartAdd(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.cartAdd) {
+      const match = text.match(pattern);
+      if (match) {
+        const product = match[1]?.trim();
+        const quantity = parseFloat(match[2]?.replace(',', '.'));
+
+        return {
+          type: 'cart_add',
+          product,
+          quantity,
+          confidence: 0.8, // Lower confidence, needs context validation
+        };
+      }
+    }
+
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as cart remove command
+   */
+  private tryParseCartRemove(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.cartRemove) {
+      const match = text.match(pattern);
+      if (match) {
+        const product = match[1]?.trim();
+
+        return {
+          type: 'cart_remove',
+          product,
+          confidence: 0.9,
+        };
+      }
+    }
+
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as cart view command
+   */
+  private tryParseCartView(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.cartView) {
+      const match = text.match(pattern);
+      if (match) {
+        return {
+          type: 'cart_view',
+          confidence: 0.9,
+        };
+      }
+    }
+
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as cart finalize command
+   */
+  private tryParseCartFinalize(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.cartFinalize) {
+      const match = text.match(pattern);
+      if (match) {
+        return {
+          type: 'cart_finalize',
+          confidence: 0.9,
+        };
+      }
+    }
+
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as cart cancel command
+   */
+  private tryParseCartCancel(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.cartCancel) {
+      const match = text.match(pattern);
+      if (match) {
+        return {
+          type: 'cart_cancel',
+          confidence: 0.9,
+        };
+      }
+    }
+
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
    * Try to parse as product list command
    */
   private tryParseProductList(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
@@ -589,6 +923,45 @@ export class CommandParserService {
   }
 
   /**
+   * Try to parse as transaction list command
+   */
+  private tryParseTransactionList(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.transactionList) {
+      const match = text.match(pattern);
+      if (match) {
+        const periodText = match[1]?.toLowerCase();
+        let period: 'day' | 'week' | 'month' = 'day';
+
+        if (periodText) {
+          if (/semaine|week/.test(periodText)) {
+            period = 'week';
+          } else if (/mois|month/.test(periodText)) {
+            period = 'month';
+          }
+        }
+
+        // Determine transaction type from command
+        let transactionType: 'sale' | 'expense' | 'all' = 'all';
+        if (/ventes?|sales?/i.test(text)) {
+          transactionType = 'sale';
+        } else if (/dépenses?|depenses?|expenses?/i.test(text)) {
+          transactionType = 'expense';
+        }
+
+        return {
+          type: 'transaction_list',
+          period,
+          transactionType,
+          limit: 20, // Default to 20 most recent transactions
+          confidence: 0.9,
+        };
+      }
+    }
+
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
    * Try to parse help command
    */
   private tryParseHelp(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
@@ -607,6 +980,8 @@ export class CommandParserService {
             helpCategory = 'expenses';
           } else if (/stock|inventaire/.test(category)) {
             helpCategory = 'stock';
+          } else if (/unité|unités|unite|unites|unit|units/.test(category)) {
+            helpCategory = 'units';
           } else if (/rapport|report/.test(category)) {
             helpCategory = 'reports';
           } else if (/commande|command/.test(category)) {
@@ -622,6 +997,186 @@ export class CommandParserService {
       }
     }
 
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as unit configuration command
+   * Format: produit unité [produit] achat [unité_achat] [facteur] [unité_base]
+   */
+  private tryParseUnitConfig(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.unitConfig) {
+      const match = text.match(pattern);
+      if (match) {
+        const product = match[1]?.trim();
+        const purchaseUnit = match[2]?.trim();
+        const conversionFactor = parseInt(match[3]);
+        const baseUnit = match[4]?.trim();
+
+        return {
+          type: 'unit_config',
+          product,
+          purchaseUnit,
+          conversionFactor,
+          baseUnit,
+          confidence: 0.95,
+        };
+      }
+    }
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as unit view command
+   * Format: produit unité [produit]
+   */
+  private tryParseUnitView(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.unitView) {
+      const match = text.match(pattern);
+      if (match) {
+        const product = match[1]?.trim();
+
+        return {
+          type: 'unit_view',
+          product,
+          confidence: 0.9,
+        };
+      }
+    }
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as unit stock command
+   * Format: stock [produit] [quantité] [unité]
+   */
+  private tryParseUnitStock(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.unitStock) {
+      const match = text.match(pattern);
+      if (match) {
+        const product = match[1]?.trim();
+        const quantity = parseFloat(match[2]);
+        const unit = match[3]?.trim();
+
+        return {
+          type: 'unit_stock',
+          product,
+          stockQuantity: quantity,
+          unit,
+          confidence: 0.9,
+        };
+      }
+    }
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as unit purchase price command
+   * Format: prix achat [produit] [prix] [unité]
+   */
+  private tryParseUnitPricePurchase(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.unitPricePurchase) {
+      const match = text.match(pattern);
+      if (match) {
+        const product = match[1]?.trim();
+        const price = this.parseAmount(match[2]);
+        const unit = match[3]?.trim();
+
+        return {
+          type: 'unit_price_purchase',
+          product,
+          unitPrice: price,
+          unit,
+          confidence: 0.9,
+        };
+      }
+    }
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as unit selling price command
+   * Format: prix vente [produit] [marge]%
+   */
+  private tryParseUnitPriceSelling(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.unitPriceSelling) {
+      const match = text.match(pattern);
+      if (match) {
+        const product = match[1]?.trim();
+        const margin = parseFloat(match[2]);
+
+        return {
+          type: 'unit_price_selling',
+          product,
+          margin,
+          confidence: 0.9,
+        };
+      }
+    }
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as unit alert command
+   * Format: alerte [produit] [seuil] [unité]
+   */
+  private tryParseUnitAlert(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.unitAlert) {
+      const match = text.match(pattern);
+      if (match) {
+        const product = match[1]?.trim();
+        const threshold = parseFloat(match[2]);
+        const unit = match[3]?.trim();
+
+        return {
+          type: 'unit_alert',
+          product,
+          threshold,
+          unit,
+          confidence: 0.9,
+        };
+      }
+    }
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as unit history command
+   * Format: historique [produit]
+   */
+  private tryParseUnitHistory(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.unitHistory) {
+      const match = text.match(pattern);
+      if (match) {
+        const product = match[1]?.trim();
+
+        return {
+          type: 'unit_history',
+          product,
+          confidence: 0.9,
+        };
+      }
+    }
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as unit price view command
+   * Format: prix [produit]
+   */
+  private tryParseUnitPriceView(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.unitPriceView) {
+      const match = text.match(pattern);
+      if (match) {
+        const product = match[1]?.trim();
+
+        return {
+          type: 'unit_price_view',
+          product,
+          confidence: 0.85, // Slightly lower confidence as it could conflict with price_set
+        };
+      }
+    }
     return { type: 'unknown', confidence: 0 };
   }
 
@@ -717,6 +1272,7 @@ export class CommandParserService {
    * Get help message for unrecognized commands
    */
   getHelpMessage(language: string = 'fr'): string {
+    // TODO: Add help messages for mooré and dioula languages
     if (language === 'wo') {
       return `Désolé, je n'ai pas compris. Essayez:\n` +
         `• "jaay 1000" - pour une vente\n` +
@@ -726,6 +1282,25 @@ export class CommandParserService {
         `💡 Tapez "aide" pour une aide complète.`;
     }
 
+    // TODO: Add mooré help message
+    // if (language === 'mo') {
+    //   return `Tɩ n kãng-a. Seb-a:\n` +
+    //     `• "koose 1000" - koosgo\n` +
+    //     `• "rãmde 500 rĩis" - rãmde\n` +
+    //     `• "stock rĩis 10" - stock mise à jour\n` +
+    //     `• "compte tɩ" - compte du jour\n\n` +
+    //     `💡 Seb-a "ndãmde" pour aide complète.`;
+    // }
+
+    // TODO: Add dioula help message  
+    // if (language === 'di') {
+    //   return `N ma a faaham. A ka kɛ:\n` +
+    //     `• "feereli 1000" - feereli\n` +
+    //     `• "san 500 malo" - san\n` +
+    //     `• "stock malo 10" - stock mise à jour\n\n` +
+    //     `💡 A ka "dɛmɛ" fɔ ka dɛmɛ kɛ.`;
+    // }
+
     return `Désolé, je n'ai pas compris. Essayez:\n` +
       `• "vente 1000" - vente de 1000 CFA\n` +
       `• "vente 10 pain 500" - vendre 10 pains pour 500 CFA au total\n` +
@@ -733,8 +1308,9 @@ export class CommandParserService {
       `• "dépense 500" ou "dépense 500 marchandise" - pour une dépense\n` +
       `• "stock pain 10" - pour mettre à jour le stock\n` +
       `• "stock pain" - pour voir le stock d'un produit\n` +
+      `• "produit unité bière achat caisse 24 bouteille" - configurer les unités\n` +
       `• "bilan jour" - pour le bilan du jour\n\n` +
-      `💡 Tapez "aide" pour une aide complète avec tous les détails.`;
+      `💡 Tapez "aide" pour une aide complète ou "aide unités" pour les unités multiples.`;
   }
 
   /**
@@ -745,6 +1321,29 @@ export class CommandParserService {
 
     switch (command.type) {
       case 'sale':
+        // For sales, allow either:
+        // 1. Amount only (e.g., "vente 1000")
+        // 2. Quantity + product (e.g., "vente 10 pain") - amount will be asked later
+        // 3. Quantity + product + amount (e.g., "vente 10 pain 3000")
+        if (command.quantity && command.product) {
+          // Quantity-based sale: amount is optional (will be asked if missing)
+          if (command.amount !== undefined && command.amount <= 0) {
+            errors.push('Le montant doit être un nombre positif');
+          }
+          if (command.amount && command.amount > 10000000) {
+            errors.push('Le montant semble trop élevé');
+          }
+        } else {
+          // Simple sale: amount is required
+          if (!command.amount || command.amount <= 0) {
+            errors.push('Le montant doit être un nombre positif');
+          }
+          if (command.amount && command.amount > 10000000) {
+            errors.push('Le montant semble trop élevé');
+          }
+        }
+        break;
+
       case 'expense':
         if (!command.amount || command.amount <= 0) {
           errors.push('Le montant doit être un nombre positif');
@@ -777,13 +1376,119 @@ export class CommandParserService {
       case 'help':
         // Help commands are always valid
         // Validate helpCategory if provided
-        if (command.helpCategory && !['general', 'sales', 'expenses', 'stock', 'reports', 'commands'].includes(command.helpCategory)) {
+        if (command.helpCategory && !['general', 'sales', 'expenses', 'stock', 'units', 'reports', 'commands'].includes(command.helpCategory)) {
           errors.push('Catégorie d\'aide invalide');
         }
         break;
 
       case 'registration':
         // Registration commands are always valid
+        break;
+
+      // Unit command validations
+      case 'unit_config':
+        if (!command.product) {
+          errors.push('Le nom du produit est requis');
+        }
+        if (!command.baseUnit) {
+          errors.push('L\'unité de base est requise');
+        }
+        if (!command.purchaseUnit) {
+          errors.push('L\'unité d\'achat est requise');
+        }
+        if (!command.conversionFactor || command.conversionFactor <= 0 || !Number.isInteger(command.conversionFactor)) {
+          errors.push('Le facteur de conversion doit être un nombre entier positif');
+        }
+        if (command.conversionFactor && command.conversionFactor > 10000) {
+          errors.push('Le facteur de conversion semble trop élevé (maximum: 10000)');
+        }
+        break;
+
+      case 'unit_view':
+      case 'unit_history':
+      case 'unit_price_view':
+        if (!command.product) {
+          errors.push('Le nom du produit est requis');
+        }
+        break;
+
+      case 'unit_stock':
+        if (!command.product) {
+          errors.push('Le nom du produit est requis');
+        }
+        if (!command.unit) {
+          errors.push('L\'unité est requise');
+        }
+        if (command.stockQuantity === undefined || command.stockQuantity < 0) {
+          errors.push('La quantité doit être un nombre positif ou zéro');
+        }
+        break;
+
+      case 'unit_price_purchase':
+        if (!command.product) {
+          errors.push('Le nom du produit est requis');
+        }
+        if (!command.unit) {
+          errors.push('L\'unité est requise');
+        }
+        if (!command.unitPrice || command.unitPrice <= 0) {
+          errors.push('Le prix doit être un nombre positif');
+        }
+        if (command.unitPrice && command.unitPrice > 10000000) {
+          errors.push('Le prix semble trop élevé');
+        }
+        break;
+
+      case 'unit_price_selling':
+        if (!command.product) {
+          errors.push('Le nom du produit est requis');
+        }
+        if (command.margin === undefined || command.margin < 0 || command.margin > 1000) {
+          errors.push('La marge doit être entre 0% et 1000%');
+        }
+        break;
+
+      case 'unit_alert':
+        if (!command.product) {
+          errors.push('Le nom du produit est requis');
+        }
+        if (!command.unit) {
+          errors.push('L\'unité est requise');
+        }
+        if (!command.threshold || command.threshold <= 0) {
+          errors.push('Le seuil d\'alerte doit être un nombre positif');
+        }
+        break;
+
+      case 'product_delete':
+        if (!command.product) {
+          errors.push('Le nom du produit à supprimer est requis');
+        }
+        break;
+
+      case 'cart_create':
+        // No validation needed for cart creation
+        break;
+
+      case 'cart_add':
+        if (!command.product) {
+          errors.push('Le nom du produit est requis');
+        }
+        if (!command.quantity || command.quantity <= 0) {
+          errors.push('La quantité doit être un nombre positif');
+        }
+        break;
+
+      case 'cart_remove':
+        if (!command.product) {
+          errors.push('Le nom du produit à retirer est requis');
+        }
+        break;
+
+      case 'cart_view':
+      case 'cart_finalize':
+      case 'cart_cancel':
+        // No validation needed for these commands
         break;
 
       case 'unknown':

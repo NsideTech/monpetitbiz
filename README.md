@@ -2,16 +2,32 @@
 
 A WhatsApp bot designed for micro-businesses in the informal sector in Africa to record business transactions, track inventory, and generate financial reports through natural language conversations.
 
+## ✨ Recent Updates (NEW!)
+
+### Enhanced Price & Sales Management
+- **💰 Simple Price Setting**: Set product prices with `prix pain 300` - one command!
+- **🚀 Auto-Calculation**: `vente 10 pain` automatically calculates total (no more math!)
+- **🔤 Plural Support**: Works with both `pain` and `pains`, `eau` and `eaux` - natural language!
+- **📊 Transaction Lists**: View detailed lists showing exactly what was sold and when
+- **💵 Stock Value Tracking**: See the total value of your inventory at a glance
+
+### Why These Matter
+- **Faster Sales**: Type `vente 10 pain` instead of calculating and typing `vente 10 pain 3000`
+- **Fewer Errors**: System calculates prices automatically - no mistakes
+- **Better Insights**: See exactly what you sold today with products and quantities
+- **Natural Language**: Use singular or plural - the bot understands both
+
 ## 🚀 Features
 
 ### Core Business Functions
 - **📱 Natural Language Processing**: Record sales and expenses using everyday language in French and local languages
 - **📊 Transaction Management**: Automatic recording of sales and expenses with validation
 - **📦 Inventory Tracking**: Real-time stock management with low-stock alerts
-- **💰 Price Management**: Set and manage unit prices for products with automatic calculation
-- **🛍️ Smart Sales**: Intelligent sales recording with automatic price calculation based on quantity
+- **💰 Price Management**: Set and manage unit prices for products with automatic calculation ✨
+- **🛍️ Smart Sales**: Intelligent sales recording with automatic price calculation based on quantity ✨
 - **📋 Product Catalog**: Complete product listing with stock levels and pricing information
 - **📈 Financial Reports**: Generate daily, weekly, and monthly business reports
+- **📋 Detailed Transaction Lists**: View transaction history with products and quantities ✨
 - **📄 PDF Generation**: Automated PDF report generation and delivery via WhatsApp
 - **🔐 Authentication**: Secure OTP-based authentication system
 - **👥 Role Management**: Owner and seller roles with appropriate permissions
@@ -163,35 +179,56 @@ curl http://localhost:3000/health
 3. **Product Setup**: Set up products and their unit prices
 4. **Business Operations**: Users interact with the bot using natural language
 5. **Smart Calculations**: Automatic price calculations based on quantity and unit prices
-6. **Automated Reports**: Daily reports sent automatically at 8 PM
+6. **Plural Support**: Works with both singular and plural forms (pain/pains, eau/eaux)
+7. **Detailed Tracking**: View transaction lists with product and quantity details
+8. **Automated Reports**: Daily reports sent automatically at 8 PM
 
-### 🆕 New Features: Smart Price Management
+### 🆕 New Features: Multiple Units Management
 
-#### Automatic Price Calculation
-The bot now supports intelligent price calculations:
+#### Multiple Units Support
+The bot now supports advanced inventory management with multiple units of measure:
+
+- **Purchase in Bulk**: Buy products in cases, bags, or cartons
+- **Sell Individually**: Sell the same products by piece, bottle, or unit
+- **Automatic Conversion**: System handles all unit conversions automatically
+- **Smart Pricing**: Calculate prices based on purchase costs and desired margins
+- **Stock Alerts**: Set alerts based on your purchase units
+
+#### Example Workflow
+```
+User: produit unité bière achat caisse 24 bouteille
+Bot: ✅ Configuration mise à jour: bière
+     📦 Achat: caisse (24 bouteilles par caisse)
+     🛒 Vente: bouteille
+
+User: prix achat bière 12000 caisse
+Bot: 💰 Prix d'achat configuré: bière
+     📦 12,000 FCFA par caisse
+     🛒 500 FCFA par bouteille
+
+User: prix vente bière 40%
+Bot: 💵 Prix de vente calculé: bière
+     📊 Marge: 40%
+     🛒 Prix recommandé: 700 FCFA par bouteille
+
+User: stock bière 5 caisse
+Bot: ✅ Stock mis à jour: bière
+     📦 Ajouté: 5 caisses (120 bouteilles)
+     📊 Stock total: 120 bouteilles (5 caisses)
+
+User: vente 2100 bière 3
+Bot: ✅ Vente enregistrée: 2,100 FCFA
+     🍺 Vendu: 3 bouteilles
+     📊 Stock restant: 117 bouteilles (4 caisses + 21 bouteilles)
+```
+
+#### Smart Price Management
+The bot also supports intelligent price calculations for simple products:
 
 - **Set Unit Prices**: `prix pain 300` sets bread price to 300 CFA per unit
 - **Quantity Sales**: `vente 10 pain` automatically calculates total (10 × 300 = 3000 CFA)
 - **Product Catalog**: `produits` shows all products with stock levels and prices
 - **Flexible Sales**: Mix automatic and custom pricing as needed
-
-#### Example Workflow
-```
-User: prix pain 250
-Bot: ✅ Prix défini: pain = 250 CFA/unité
-
-User: prix lait 500  
-Bot: ✅ Prix défini: lait = 500 CFA/unité
-
-User: produits
-Bot: 📋 LISTE DES PRODUITS:
-     • pain: 📦 50 unités, 💰 250 CFA/unité
-     • lait: 📦 20 unités, 💰 500 CFA/unité
-
-User: vente 5 pain
-Bot: ✅ Vente enregistrée: 5 pain pour 1250 CFA (250 CFA/unité)
-     📊 Stock restant: 45 unités
-```
 
 ### Supported Commands
 
@@ -199,6 +236,8 @@ Bot: ✅ Vente enregistrée: 5 pain pour 1250 CFA (250 CFA/unité)
 ```
 vente 1000                    # Simple sale amount
 vente pain 1500              # Product with custom price
+vente 10 pain                # Quantity sale (auto-calculates if unit price set) ✨
+vente 10 pains               # Works with plurals too! ✨
 vente 10 pain 2500           # Quantity + product + total amount
 j'ai vendu du pain à 2000    # Natural language
 ```
@@ -224,20 +263,61 @@ prix pain 300       # Set unit price for bread to 300 CFA
 prix lait 500       # Set unit price for milk to 500 CFA
 ```
 
-#### Smart Sales (with automatic calculation)
+#### Multiple Units Management
 ```
-vente pain          # Sell 1 bread at unit price
-vente 10 pain       # Sell 10 breads (auto-calculated: 10 × unit price)
-vente pain 500      # Sell bread for custom price (500 CFA)
-vente 10 pain 2500  # Sell 10 breads for total 2500 CFA
+# Configure units
+produit unité bière achat caisse 24 bouteille
+produit unité riz achat sac 50 kg
+produit unité savon achat carton 12 pièce
+
+# Manage stock with units
+stock bière 5 caisse          # Add 5 cases (120 bottles)
+stock riz 10 sac             # Add 10 bags (500 kg)
+stock                         # View all stock with units
+
+# Price management with units
+prix achat bière 12000 caisse # Set purchase price per case
+prix vente bière 40%          # Set 40% profit margin
+prix bière                    # View all price information
+
+# Alerts with units
+alerte bière 2 caisse         # Alert when below 2 cases
+alerte riz 5 sac              # Alert when below 5 bags
+
+# View configuration and history
+produit unité bière           # View unit configuration
+historique bière              # View movement history
 ```
 
-#### Reports
+#### Smart Sales (with automatic calculation) ✨
 ```
-bilan jour         # Daily balance
-bilan semaine      # Weekly balance
-bilan mois         # Monthly balance
-rapport PDF        # Generate PDF report
+vente pain          # Sell 1 bread at unit price
+vente 10 pain       # Sell 10 breads (auto-calculated: 10 × unit price) ✨
+vente 10 pains      # Works with plurals too! ✨
+vente pain 500      # Sell bread for custom price (500 CFA)
+vente 10 pain 2500  # Sell 10 breads for total 2500 CFA
+
+# How it works:
+# 1. Set price once: "prix pain 300"
+# 2. Sell quickly: "vente 10 pain" → Auto-calculates: 3,000 CFA
+# 3. Stock updates automatically
+```
+
+#### Reports & Transaction Lists
+```
+# Balance Reports (Totals)
+bilan jour              # Daily balance (totals)
+bilan semaine           # Weekly balance
+bilan mois              # Monthly balance
+rapport PDF             # Generate PDF report
+
+# Detailed Transaction Lists (NEW!) ✨
+transactions            # List all transactions with products/quantities
+transactions jour       # Today's transactions
+transactions semaine    # This week's transactions
+ventes jour            # Only sales for today
+dépenses jour          # Only expenses for today
+liste ventes           # List of all sales
 ```
 
 ### Message Processing Flow
@@ -471,8 +551,9 @@ For comprehensive monitoring setup, see:
 - [Monitoring and Alerting Guide](docs/twilio-monitoring-alerting-guide.md)
 - [Troubleshooting Guide](docs/twilio-troubleshooting-guide.md)
 
-## 📚 API Documentation
+## 📚 Documentation
 
+### API Documentation
 The complete API documentation is available at `/api` when the server is running. Key endpoints include:
 
 - **Authentication**: `/auth/*`
@@ -480,6 +561,24 @@ The complete API documentation is available at `/api` when the server is running
 - **Meta Webhook** (fallback): `/whatsapp/webhook`
 - **Health Checks**: `/health/*`
 - **Dashboard API**: `/dashboard/*`
+
+### Feature Documentation
+
+#### Price Management (NEW!) ✨
+- **[Price Setting Guide](docs/price-setting-guide.md)** - Complete guide for setting and managing prices
+- **[Transaction List Guide](docs/transaction-list-guide.md)** - How to view detailed transaction lists
+- **[Quick Reference](QUICK-PRICE-REFERENCE.md)** - Quick command reference card
+
+#### Multiple Units Management
+- **[User Guide](docs/units-management-guide.md)** - Complete guide for merchants
+- **[WhatsApp Commands Reference](docs/whatsapp-units-commands.md)** - Quick command reference
+- **[Technical Documentation](docs/units-technical-documentation.md)** - Developer documentation
+
+#### Other Features
+- **[Twilio Setup Guide](docs/twilio-setup-guide.md)** - WhatsApp integration setup
+- **[Production Deployment](docs/twilio-production-deployment.md)** - Production deployment guide
+- **[Monitoring & Alerting](docs/twilio-monitoring-alerting-guide.md)** - System monitoring
+- **[Troubleshooting Guide](docs/twilio-troubleshooting-guide.md)** - Common issues and solutions
 
 ## 🤝 Contributing
 

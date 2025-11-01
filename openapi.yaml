@@ -62,7 +62,7 @@ paths:
                 phoneNumber:
                   type: string
                   pattern: '^\+[1-9]\d{1,14}$'
-                  example: "+221123456789"
+                  example: "+226123456789"
                   description: Phone number in international format
             examples:
               burkina:
@@ -110,7 +110,7 @@ paths:
                 phoneNumber:
                   type: string
                   pattern: '^\+[1-9]\d{1,14}$'
-                  example: "+221123456789"
+                  example: "+226123456789"
                 code:
                   type: string
                   pattern: '^\d{6}$'
@@ -157,7 +157,7 @@ paths:
                 phoneNumber:
                   type: string
                   pattern: '^\+[1-9]\d{1,14}$'
-                  example: "+221123456789"
+                  example: "+226123456789"
                 businessName:
                   type: string
                   minLength: 2
@@ -219,7 +219,7 @@ paths:
                 phoneNumber:
                   type: string
                   pattern: '^\+[1-9]\d{1,14}$'
-                  example: "+221123456789"
+                  example: "+226123456789"
                   description: Phone number in international format
                 businessName:
                   type: string
@@ -279,7 +279,7 @@ paths:
                   value:
                     user:
                       id: "123e4567-e89b-12d3-a456-426614174000"
-                      phoneNumber: "+221123456789"
+                      phoneNumber: "+226123456789"
                       employeeName: "Fabrice Ilboudo"
                       role: "owner"
                       language: "fr"
@@ -303,7 +303,7 @@ paths:
                   summary: Invalid phone number
                   value:
                     statusCode: 400
-                    message: "Numéro de téléphone invalide. Format attendu: +221XXXXXXXXX"
+                    message: "Numéro de téléphone invalide. Format attendu: +226XXXXXXXXX"
                     error: "Bad Request"
                 invalid_business_name:
                   summary: Invalid business name
@@ -371,7 +371,7 @@ paths:
                 phoneNumber:
                   type: string
                   pattern: '^\+[1-9]\d{1,14}$'
-                  example: "+221987654321"
+                  example: "+226987654321"
                   description: Phone number in international format
                 businessCode:
                   type: string
@@ -399,7 +399,7 @@ paths:
               seller_registration:
                 summary: Seller registration
                 value:
-                  phoneNumber: "+221987654321"
+                  phoneNumber: "+226987654321"
                   businessCode: "ABC123"
                   employeeName: "Moussa Sow"
                   role: "seller"
@@ -443,7 +443,7 @@ paths:
                   value:
                     user:
                       id: "789e1234-e89b-12d3-a456-426614174002"
-                      phoneNumber: "+221987654321"
+                      phoneNumber: "+226987654321"
                       employeeName: "Moussa Sow"
                       role: "seller"
                       language: "fr"
@@ -780,7 +780,7 @@ paths:
                 value:
                   MessageSid: "SM1234567890abcdef1234567890abcdef"
                   AccountSid: "AC1234567890abcdef1234567890abcdef"
-                  From: "whatsapp:+221123456789"
+                  From: "whatsapp:+226123456789"
                   To: "whatsapp:+14155238886"
                   Body: "vente pain 1500"
                   ProfileName: "Fabrice Ilboudo"
@@ -791,7 +791,7 @@ paths:
                 value:
                   MessageSid: "SM9876543210fedcba9876543210fedcba"
                   AccountSid: "AC1234567890abcdef1234567890abcdef"
-                  From: "whatsapp:+221987654321"
+                  From: "whatsapp:+226987654321"
                   To: "whatsapp:+14155238886"
                   Body: "dépense 2000 marchandise"
                   ProfileName: "Moussa Sow"
@@ -802,7 +802,7 @@ paths:
                 value:
                   MessageSid: "SM5555555555abcdef5555555555abcdef"
                   AccountSid: "AC1234567890abcdef1234567890abcdef"
-                  From: "whatsapp:+221555666777"
+                  From: "whatsapp:+226555666777"
                   To: "whatsapp:+14155238886"
                   Body: "bonjour"
                   ProfileName: "Nouveau Utilisateur"
@@ -909,7 +909,7 @@ paths:
               properties:
                 from:
                   type: string
-                  example: "+221123456789"
+                  example: "+226123456789"
                   description: "Phone number without whatsapp: prefix"
                 message:
                   type: string
@@ -923,13 +923,13 @@ paths:
               test_sale:
                 summary: Test sale command
                 value:
-                  from: "+221123456789"
+                  from: "+226123456789"
                   message: "vente pain 1500"
                   profileName: "Test User"
               test_registration:
                 summary: Test registration
                 value:
-                  from: "+221987654321"
+                  from: "+226987654321"
                   message: "bonjour"
                   profileName: "New User"
       responses:
@@ -1293,7 +1293,7 @@ components:
           example: "123e4567-e89b-12d3-a456-426614174000"
         phoneNumber:
           type: string
-          example: "+221123456789"
+          example: "+226123456789"
         businessId:
           type: string
           format: uuid
@@ -1455,7 +1455,7 @@ components:
         From:
           type: string
           description: Sender's WhatsApp number in Twilio format
-          example: "whatsapp:+221123456789"
+          example: "whatsapp:+226123456789"
           pattern: '^whatsapp:\+[1-9]\d{1,14}$'
         To:
           type: string
@@ -1664,8 +1664,8 @@ components:
           code: "ZZZ999"
           error: "Code d'entreprise inexistant. Vérifiez avec votre employeur."
         duplicate_phone:
-          phoneNumber: "+221123456789"
+          phoneNumber: "+226123456789"
           error: "Ce numéro de téléphone est déjà enregistré"
         invalid_phone:
           phoneNumber: "123456789"
-          error: "Numéro de téléphone invalide. Format attendu: +221XXXXXXXXX"
+          error: "Numéro de téléphone invalide. Format attendu: +226XXXXXXXXX"

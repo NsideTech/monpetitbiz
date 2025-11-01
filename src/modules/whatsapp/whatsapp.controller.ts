@@ -236,7 +236,7 @@ export class WhatsappController {
         MessageSid: { type: 'string', example: 'SM1234567890abcdef1234567890abcdef' },
         AccountSid: { type: 'string', example: 'AC1234567890abcdef1234567890abcdef' },
         MessagingServiceSid: { type: 'string', example: 'MG1234567890abcdef1234567890abcdef' },
-        From: { type: 'string', example: 'whatsapp:+221123456789' },
+        From: { type: 'string', example: 'whatsapp:+226123456789' },
         To: { type: 'string', example: 'whatsapp:+14155238886' },
         Body: { type: 'string', example: 'vente pain 1500' },
         NumMedia: { type: 'string', example: '0' },
@@ -264,7 +264,7 @@ export class WhatsappController {
     this.logger.debug('Twilio payload:', payload);
 
     try {
-      // Extract phone number from Twilio format (whatsapp:+221123456789 -> +221123456789)
+      // Extract phone number from Twilio format (whatsapp:+226123456789 -> +226123456789)
       const from = payload.From?.replace('whatsapp:', '') || payload.WaId;
       const message = payload.Body || '';
       const messageId = payload.MessageSid || `twilio-${Date.now()}`;
@@ -398,7 +398,7 @@ export class WhatsappController {
     schema: {
       type: 'object',
       properties: {
-        from: { type: 'string', example: '+221123456789', description: 'Phone number without whatsapp: prefix' },
+        from: { type: 'string', example: '+226123456789', description: 'Phone number without whatsapp: prefix' },
         message: { type: 'string', example: 'vente pain 1500', description: 'Message content' },
         profileName: { type: 'string', example: 'John Doe', description: 'WhatsApp profile name (optional)' }
       },
@@ -454,7 +454,7 @@ export class WhatsappController {
     schema: {
       type: 'object',
       properties: {
-        from: { type: 'string', example: '+221123456789', description: 'Phone number' },
+        from: { type: 'string', example: '+226123456789', description: 'Phone number' },
         message: { type: 'string', example: 'vente pain 1500', description: 'Message content' },
         profileName: { type: 'string', example: 'Test User', description: 'Profile name (optional)' }
       },

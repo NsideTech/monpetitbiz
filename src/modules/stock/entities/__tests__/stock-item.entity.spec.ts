@@ -181,7 +181,7 @@ describe('StockItem Entity', () => {
       const multilingualProducts = [
         'Pain', // French
         'Bread', // English
-        'Mburu', // Wolof
+        // 'Mburu', // Wolof
         'خبز' // Arabic
       ];
       

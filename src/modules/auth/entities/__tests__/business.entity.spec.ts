@@ -87,12 +87,12 @@ describe('Business Entity', () => {
     describe('Relationships', () => {
         it('should have one-to-many relationship with users', () => {
             const user1 = new User();
-            user1.phoneNumber = '+221701234567';
+            user1.phoneNumber = '+226701234567';
             user1.role = UserRole.OWNER;
             user1.businessId = 'business-id';
 
             const user2 = new User();
-            user2.phoneNumber = '+221701234568';
+            user2.phoneNumber = '+226701234568';
             user2.role = UserRole.SELLER;
             user2.businessId = 'business-id';
 

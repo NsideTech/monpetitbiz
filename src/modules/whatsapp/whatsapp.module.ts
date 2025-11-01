@@ -15,6 +15,8 @@ import { ConflictResolutionService } from './services/conflict-resolution.servic
 import { OnboardingMessagesService } from './services/onboarding-messages.service';
 import { OnboardingCheckMiddleware } from './middleware/onboarding-check.middleware';
 import { HelpService } from './services/help.service';
+import { UnitCommandHandler } from './services/unit-command-handler.service';
+import { ConfirmationStateService } from './services/confirmation-state.service';
 import { TwilioMessageParser } from './services/twilio-message-parser.service';
 import { TwilioWebhookController } from './controllers/twilio-webhook.controller';
 import { WebhookTestController } from './controllers/webhook-test.controller';
@@ -29,6 +31,10 @@ import { AuthModule } from '../auth/auth.module';
 import { TransactionModule } from '../transaction/transaction.module';
 import { StockModule } from '../stock/stock.module';
 import { ReportModule } from '../report/report.module';
+import { CartCreateHandler } from './handlers/cart-create-handler';
+import { CartHandlers } from './handlers/cart-handlers';
+import { SaleSessionService } from './services/sale-session.service';
+import { InvoiceModule } from '../invoice/invoice.module';
 
 @Module({
   imports: [
@@ -36,6 +42,7 @@ import { ReportModule } from '../report/report.module';
     AuthModule,
     TransactionModule,
     StockModule,
+    InvoiceModule,
     forwardRef(() => ReportModule),
   ],
   providers: [
@@ -52,6 +59,8 @@ import { ReportModule } from '../report/report.module';
     OnboardingMessagesService,
     OnboardingCheckMiddleware,
     HelpService,
+    UnitCommandHandler,
+    ConfirmationStateService,
     TwilioMessageParser,
     TwilioConfigService,
     TwilioErrorHandlerService,
@@ -59,6 +68,9 @@ import { ReportModule } from '../report/report.module';
     TwilioWhatsAppService,
     DualProviderService,
     MigrationValidationService,
+    SaleSessionService,
+    CartCreateHandler,
+    CartHandlers,
   ],
   controllers: [WhatsappController, HealthController, TwilioWebhookController, WebhookTestController, MigrationValidationController],
   exports: [WhatsappService, BotController, MessageQueueService, NLPService, CommandParserService, ConversationStateService, RegistrationHandlerService, ConflictResolutionService, OnboardingMessagesService, OnboardingCheckMiddleware, TwilioMessageParser, TwilioLoggerService, TwilioWhatsAppService, DualProviderService, MigrationValidationService],

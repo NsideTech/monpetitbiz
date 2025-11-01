@@ -10,8 +10,14 @@ import { TwilioWhatsAppService } from './services/twilio-whatsapp.service';
 import { RegistrationHandlerService } from './services/registration-handler.service';
 import { OnboardingCheckMiddleware } from './middleware/onboarding-check.middleware';
 import { HelpService, HelpContext } from './services/help.service';
+import { UnitCommandHandler } from './services/unit-command-handler.service';
+import { ConfirmationStateService } from './services/confirmation-state.service';
+import { SaleSessionService } from './services/sale-session.service';
+import { InvoiceService } from '../invoice/invoice.service';
 import { TransactionType } from '../transaction/entities/transaction.entity';
 import { ReportPeriod } from '../report/dto/report.dto';
+import { CartCreateHandler } from './handlers/cart-create-handler';
+import { CartHandlers } from './handlers/cart-handlers';
 
 export interface BotResponse {
   success: boolean;
@@ -35,6 +41,12 @@ export class BotController {
     private readonly registrationHandlerService: RegistrationHandlerService,
     private readonly onboardingCheckMiddleware: OnboardingCheckMiddleware,
     private readonly helpService: HelpService,
+    private readonly unitCommandHandler: UnitCommandHandler,
+    private readonly confirmationStateService: ConfirmationStateService,
+    private readonly saleSessionService: SaleSessionService,
+    private readonly invoiceService: InvoiceService,
+    private readonly cartCreateHandler: CartCreateHandler,
+    private readonly cartHandlers: CartHandlers,
   ) { }
 
   /**
@@ -151,8 +163,63 @@ export class BotController {
       case 'report':
         return await this.handleReportCommand(phoneNumber, command, userContext);
 
+      case 'transaction_list':
+        return await this.handleTransactionListCommand(phoneNumber, command, userContext);
+
       case 'help':
         return await this.handleHelpCommand(phoneNumber, command, userContext);
+
+      case 'price_set':
+        return await this.handlePriceSetCommand(phoneNumber, command, userContext);
+
+      // Unit command handlers
+      case 'unit_config':
+        return await this.handleUnitConfigCommand(phoneNumber, command, userContext);
+
+      case 'unit_view':
+        return await this.handleUnitViewCommand(phoneNumber, command, userContext);
+
+      case 'unit_stock':
+        return await this.handleUnitStockCommand(phoneNumber, command, userContext);
+
+      case 'unit_price_purchase':
+        return await this.handleUnitPricePurchaseCommand(phoneNumber, command, userContext);
+
+      case 'unit_price_selling':
+        return await this.handleUnitPriceSellingCommand(phoneNumber, command, userContext);
+
+      case 'unit_alert':
+        return await this.handleUnitAlertCommand(phoneNumber, command, userContext);
+
+      case 'unit_history':
+        return await this.handleUnitHistoryCommand(phoneNumber, command, userContext);
+
+      case 'unit_price_view':
+        return await this.handleUnitPriceViewCommand(phoneNumber, command, userContext);
+
+      case 'product_delete':
+        return await this.handleProductDeleteCommand(phoneNumber, command, userContext);
+
+      case 'confirm_delete':
+        return await this.handleConfirmDeleteCommand(phoneNumber, command, userContext);
+
+      case 'cart_create':
+        return await this.handleCartCreateCommand(phoneNumber, command, userContext);
+
+      case 'cart_add':
+        return await this.handleCartAddCommand(phoneNumber, command, userContext);
+
+      case 'cart_remove':
+        return await this.handleCartRemoveCommand(phoneNumber, command, userContext);
+
+      case 'cart_view':
+        return await this.handleCartViewCommand(phoneNumber, command, userContext);
+
+      case 'cart_finalize':
+        return await this.handleCartFinalizeCommand(phoneNumber, command, userContext);
+
+      case 'cart_cancel':
+        return await this.handleCartCancelCommand(phoneNumber, command, userContext);
 
       case 'unknown':
       default:
@@ -289,15 +356,35 @@ export class BotController {
         return { success: false, message: response };
       }
 
-      // If amount is not specified, ask for it
+      // If amount is not specified, check if unit price is set
       if (!command.amount || command.amount <= 0) {
-        const response = `📦 Vente de ${command.quantity} ${command.product}\n\n` +
-          `💡 Veuillez préciser le montant total:\n` +
-          `• Tapez: "${command.quantity} ${command.product} [montant]"\n` +
-          `• Exemple: "${command.quantity} ${command.product} 2500"`;
+        // Try to get unit price for automatic calculation
+        const unitPrice = await this.stockService.getUnitPrice(
+          userContext.businessId!,
+          command.product
+        );
 
-        await this.sendErrorMessage(phoneNumber, response);
-        return { success: false, message: response };
+        if (unitPrice && unitPrice > 0) {
+          // Calculate amount automatically
+          command.amount = command.quantity * unitPrice;
+          this.logger.log(`[BotController] Auto-calculated amount: ${command.quantity} × ${unitPrice} = ${command.amount}`);
+          
+          // Show a message about auto-calculation
+          const calculationInfo = `💡 Prix unitaire: ${this.formatCurrency(unitPrice)}\n` +
+            `📊 Calcul: ${command.quantity} × ${this.formatCurrency(unitPrice)} = ${this.formatCurrency(command.amount)}\n\n`;
+          
+          // Continue to process the sale (will be shown in confirmation)
+        } else {
+          // No unit price set, ask for amount
+          const response = `📦 Vente de ${command.quantity} ${command.product}\n\n` +
+            `💡 Veuillez préciser le montant total:\n` +
+            `• Tapez: "vente ${command.quantity} ${command.product} [montant]"\n` +
+            `• Exemple: "vente ${command.quantity} ${command.product} 2500"\n\n` +
+            `💡 Ou définissez le prix unitaire: prix ${command.product} [montant]`;
+
+          await this.sendErrorMessage(phoneNumber, response);
+          return { success: false, message: response };
+        }
       }
 
       // Process the sale with both quantity and amount
@@ -347,12 +434,25 @@ export class BotController {
 
       // Calculate unit price for display
       const unitPrice = Math.round(command.amount / command.quantity);
+      
+      // Check if this was auto-calculated from unit price
+      const storedUnitPrice = await this.stockService.getUnitPrice(
+        userContext.businessId!,
+        command.product
+      );
+      const wasAutoCalculated = storedUnitPrice && Math.abs(storedUnitPrice - unitPrice) < 1;
 
       // Send confirmation
       let response = `✅ Vente enregistrée:\n`;
       response += `📦 Quantité: ${command.quantity} ${command.product}\n`;
-      response += `💰 Montant total: ${this.formatCurrency(command.amount)}\n`;
-      response += `💵 Prix unitaire: ${this.formatCurrency(unitPrice)}`;
+      response += `💰 Montant total: ${this.formatCurrency(command.amount)}`;
+      if (wasAutoCalculated) {
+        response += ` ✨\n`;
+        response += `💵 Prix unitaire: ${this.formatCurrency(unitPrice)} (calculé automatiquement)`;
+      } else {
+        response += `\n`;
+        response += `💵 Prix unitaire: ${this.formatCurrency(unitPrice)}`;
+      }
       response += stockMessage;
 
       await this.sendSuccessMessage(phoneNumber, response);
@@ -496,14 +596,34 @@ export class BotController {
         } else if (item.quantity <= 5) {
           response += ' ⚠️ (Stock faible)';
         }
+
+        // Add price information if available
+        if (item.unitPrice) {
+          response += `\n💰 Prix: ${this.formatCurrency(item.unitPrice)}/unité`;
+          if (item.quantity > 0) {
+            const totalValue = item.quantity * item.unitPrice;
+            response += `\n💵 Valeur du stock: ${this.formatCurrency(totalValue)}`;
+          }
+        } else {
+          response += `\n💡 Prix non défini. Définissez avec: prix ${item.product} [montant]`;
+        }
       } else {
         // All products query
         if (stockItems.length === 0) {
           response = '📦 Aucun produit en stock.';
         } else {
-          response = '📦 ÉTAT DU STOCK:\n';
+          response = '📦 ÉTAT DU STOCK:\n\n';
+          let totalValue = 0;
+          
           stockItems.forEach(item => {
             response += `• ${item.product}: ${item.quantity} unités`;
+            
+            if (item.unitPrice) {
+              response += ` - prix unitaire: ${this.formatCurrency(item.unitPrice)}`;
+              const itemValue = item.quantity * item.unitPrice;
+              totalValue += itemValue;
+            }
+            
             if (item.quantity === 0) {
               response += ' ⚠️';
             } else if (item.quantity <= 5) {
@@ -511,6 +631,11 @@ export class BotController {
             }
             response += '\n';
           });
+
+          // Show total inventory value if any prices are set
+          if (totalValue > 0) {
+            response += `\n💰 Valeur totale du stock: ${this.formatCurrency(totalValue)}`;
+          }
         }
       }
 
@@ -532,6 +657,67 @@ export class BotController {
         response = 'Erreur lors de la consultation du stock.';
       }
 
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle price set command
+   * Sets unit price for a product (simple pricing without units)
+   */
+  private async handlePriceSetCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      if (!command.product || !command.product.trim()) {
+        const response = '❌ Veuillez spécifier le nom du produit.\n\n' +
+          '📝 Format: prix [produit] [montant]\n' +
+          '💡 Exemple: prix pain 300';
+        await this.sendErrorMessage(phoneNumber, response);
+        return { success: false, message: response };
+      }
+
+      if (!command.unitPrice || command.unitPrice <= 0) {
+        const response = '❌ Veuillez spécifier un prix valide.\n\n' +
+          '📝 Format: prix [produit] [montant]\n' +
+          '💡 Exemple: prix pain 300';
+        await this.sendErrorMessage(phoneNumber, response);
+        return { success: false, message: response };
+      }
+
+      // Set the unit price
+      const stockItem = await this.stockService.setUnitPrice(
+        userContext.businessId!,
+        command.product,
+        command.unitPrice
+      );
+
+      let response = `✅ Prix défini pour ${stockItem.product}:\n`;
+      response += `💰 ${this.formatCurrency(command.unitPrice)}/unité\n\n`;
+      
+      // Check if product has stock
+      if (stockItem.quantity > 0) {
+        const totalValue = stockItem.quantity * command.unitPrice;
+        response += `📊 Stock actuel: ${stockItem.quantity} unités\n`;
+        response += `💵 Valeur du stock: ${this.formatCurrency(totalValue)}`;
+      } else {
+        response += `💡 Ajoutez du stock avec:\nstock ${stockItem.product} [quantité]`;
+      }
+
+      await this.sendSuccessMessage(phoneNumber, response);
+
+      return {
+        success: true,
+        message: response,
+        data: { stockItem }
+      };
+
+    } catch (error) {
+      this.logger.error('Error handling price set command:', error);
+      const response = '❌ Erreur lors de la définition du prix. Veuillez réessayer.';
       await this.sendErrorMessage(phoneNumber, response);
       return { success: false, message: response };
     }
@@ -625,6 +811,113 @@ export class BotController {
   }
 
   /**
+   * Handle transaction list command
+   * Shows detailed list of transactions with products and quantities
+   */
+  private async handleTransactionListCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      const period = this.mapPeriod(command.period || 'day');
+      const transactionType = command.transactionType;
+      
+      // Calculate date range based on period
+      const now = new Date();
+      let startDate: Date;
+      
+      switch (period) {
+        case 'week':
+          startDate = new Date(now);
+          startDate.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          startDate = new Date(now);
+          startDate.setDate(now.getDate() - 30);
+          break;
+        default: // day
+          startDate = new Date(now);
+          startDate.setHours(0, 0, 0, 0);
+      }
+
+      // Get transactions
+      const transactions = await this.transactionService.getTransactions(
+        userContext.businessId!,
+        command.limit || 20,
+        undefined,
+        transactionType === 'all' ? undefined : (transactionType === 'sale' ? TransactionType.SALE : TransactionType.EXPENSE)
+      );
+
+      // Filter by date
+      const filteredTransactions = transactions.filter(t => t.createdAt >= startDate);
+
+      if (filteredTransactions.length === 0) {
+        let response = `📋 TRANSACTIONS - ${period.toUpperCase()}\n\n`;
+        response += '✨ Aucune transaction trouvée pour cette période.';
+        
+        await this.sendSuccessMessage(phoneNumber, response);
+        return { success: true, message: response };
+      }
+
+      // Format response
+      let response = `📋 TRANSACTIONS - ${period.toUpperCase()}\n`;
+      if (transactionType === 'sale') {
+        response += '🛒 Ventes uniquement\n\n';
+      } else if (transactionType === 'expense') {
+        response += '💸 Dépenses uniquement\n\n';
+      } else {
+        response += '📊 Toutes les transactions\n\n';
+      }
+
+      let totalAmount = 0;
+      filteredTransactions.forEach((transaction, index) => {
+        const time = transaction.createdAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const emoji = transaction.type === TransactionType.SALE ? '✅' : '💸';
+        const typeText = transaction.type === TransactionType.SALE ? 'Vente' : 'Dépense';
+        
+        response += `${emoji} ${typeText} - ${time}\n`;
+        
+        if (transaction.product) {
+          // Try to extract quantity from description
+          const qtyMatch = transaction.description?.match(/^(\d+)/);
+          if (qtyMatch) {
+            response += `   📦 ${qtyMatch[1]} × ${transaction.product}\n`;
+          } else {
+            response += `   📦 ${transaction.product}\n`;
+          }
+        }
+        
+        response += `   💰 ${this.formatCurrency(transaction.amount)}\n`;
+        
+        if (index < filteredTransactions.length - 1) {
+          response += '\n';
+        }
+        
+        totalAmount += Number(transaction.amount);
+      });
+
+      response += `\n━━━━━━━━━━━━━━━━━\n`;
+      response += `📊 Total: ${filteredTransactions.length} transaction(s)\n`;
+      response += `💰 Montant total: ${this.formatCurrency(totalAmount)}`;
+
+      await this.sendSuccessMessage(phoneNumber, response);
+
+      return {
+        success: true,
+        message: response,
+        data: { transactions: filteredTransactions, period, transactionType }
+      };
+
+    } catch (error) {
+      this.logger.error('Error handling transaction list command:', error);
+      const response = 'Erreur lors de la récupération des transactions. Veuillez réessayer.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
    * Handle registration flow messages
    */
   private async handleRegistrationFlow(message: ProcessedMessage): Promise<BotResponse> {
@@ -707,6 +1000,470 @@ export class BotController {
   }
 
   /**
+   * Handle unit configuration command
+   * Requirements: 1.1, 1.2, 1.3
+   */
+  private async handleUnitConfigCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      // Create matches array for the handler
+      const matches = [
+        command.originalText,
+        command.product,
+        command.purchaseUnit,
+        command.conversionFactor?.toString(),
+        command.baseUnit
+      ];
+
+      const result = await this.unitCommandHandler.handleConfigureUnits(
+        userContext.businessId!,
+        userContext.userId!,
+        matches as RegExpMatchArray
+      );
+
+      if (result.success) {
+        await this.sendSuccessMessage(phoneNumber, result.message);
+      } else {
+        await this.sendErrorMessage(phoneNumber, result.message);
+      }
+
+      return {
+        success: result.success,
+        message: result.message,
+        data: result.data
+      };
+
+    } catch (error) {
+      this.logger.error('Error handling unit config command:', error);
+      const response = 'Erreur lors de la configuration des unités.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle unit view command
+   * Requirements: 1.4
+   */
+  private async handleUnitViewCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      const result = await this.unitCommandHandler.handleViewUnits(
+        userContext.businessId!,
+        command.product
+      );
+
+      if (result.success) {
+        await this.sendSuccessMessage(phoneNumber, result.message);
+      } else {
+        await this.sendErrorMessage(phoneNumber, result.message);
+      }
+
+      return {
+        success: result.success,
+        message: result.message,
+        data: result.data
+      };
+
+    } catch (error) {
+      this.logger.error('Error handling unit view command:', error);
+      const response = 'Erreur lors de la consultation des unités.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle unit stock command
+   * Requirements: 2.1, 2.2
+   */
+  private async handleUnitStockCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      // Create matches array for the handler
+      const matches = [
+        command.originalText,
+        command.product,
+        command.stockQuantity?.toString(),
+        command.unit
+      ];
+
+      const result = await this.unitCommandHandler.handleStockWithUnit(
+        userContext.businessId!,
+        userContext.userId!,
+        matches as RegExpMatchArray
+      );
+
+      if (result.success) {
+        await this.sendSuccessMessage(phoneNumber, result.message);
+      } else {
+        await this.sendErrorMessage(phoneNumber, result.message);
+      }
+
+      return {
+        success: result.success,
+        message: result.message,
+        data: result.data
+      };
+
+    } catch (error) {
+      this.logger.error('Error handling unit stock command:', error);
+      const response = 'Erreur lors de la mise à jour du stock avec unités.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle unit purchase price command
+   * Requirements: 5.1, 5.2
+   */
+  private async handleUnitPricePurchaseCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      // Create matches array for the handler
+      const matches = [
+        command.originalText,
+        command.product,
+        command.unitPrice?.toString(),
+        command.unit
+      ];
+
+      const result = await this.unitCommandHandler.handlePurchasePrice(
+        userContext.businessId!,
+        matches as RegExpMatchArray
+      );
+
+      if (result.success) {
+        await this.sendSuccessMessage(phoneNumber, result.message);
+      } else {
+        await this.sendErrorMessage(phoneNumber, result.message);
+      }
+
+      return {
+        success: result.success,
+        message: result.message,
+        data: result.data
+      };
+
+    } catch (error) {
+      this.logger.error('Error handling unit purchase price command:', error);
+      const response = 'Erreur lors de la définition du prix d\'achat.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle unit selling price command
+   * Requirements: 5.3, 5.4
+   */
+  private async handleUnitPriceSellingCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      // Create matches array for the handler
+      const matches = [
+        command.originalText,
+        command.product,
+        command.margin?.toString()
+      ];
+
+      const result = await this.unitCommandHandler.handleSellingMargin(
+        userContext.businessId!,
+        matches as RegExpMatchArray
+      );
+
+      if (result.success) {
+        await this.sendSuccessMessage(phoneNumber, result.message);
+      } else {
+        await this.sendErrorMessage(phoneNumber, result.message);
+      }
+
+      return {
+        success: result.success,
+        message: result.message,
+        data: result.data
+      };
+
+    } catch (error) {
+      this.logger.error('Error handling unit selling price command:', error);
+      const response = 'Erreur lors du calcul du prix de vente.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle unit alert command
+   * Requirements: 6.1, 6.2
+   */
+  private async handleUnitAlertCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      // Create matches array for the handler
+      const matches = [
+        command.originalText,
+        command.product,
+        command.threshold?.toString(),
+        command.unit
+      ];
+
+      const result = await this.unitCommandHandler.handleAlertConfig(
+        userContext.businessId!,
+        matches as RegExpMatchArray
+      );
+
+      if (result.success) {
+        await this.sendSuccessMessage(phoneNumber, result.message);
+      } else {
+        await this.sendErrorMessage(phoneNumber, result.message);
+      }
+
+      return {
+        success: result.success,
+        message: result.message,
+        data: result.data
+      };
+
+    } catch (error) {
+      this.logger.error('Error handling unit alert command:', error);
+      const response = 'Erreur lors de la configuration de l\'alerte.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle unit history command
+   * Requirements: 7.1, 7.2
+   */
+  private async handleUnitHistoryCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      const result = await this.unitCommandHandler.handleMovementHistory(
+        userContext.businessId!,
+        command.product
+      );
+
+      if (result.success) {
+        await this.sendSuccessMessage(phoneNumber, result.message);
+      } else {
+        await this.sendErrorMessage(phoneNumber, result.message);
+      }
+
+      return {
+        success: result.success,
+        message: result.message,
+        data: result.data
+      };
+
+    } catch (error) {
+      this.logger.error('Error handling unit history command:', error);
+      const response = 'Erreur lors de la consultation de l\'historique.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle unit price view command
+   * Requirements: 5.5
+   */
+  private async handleUnitPriceViewCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      const result = await this.unitCommandHandler.handleViewPrices(
+        userContext.businessId!,
+        command.product
+      );
+
+      if (result.success) {
+        await this.sendSuccessMessage(phoneNumber, result.message);
+      } else {
+        await this.sendErrorMessage(phoneNumber, result.message);
+      }
+
+      return {
+        success: result.success,
+        message: result.message,
+        data: result.data
+      };
+
+    } catch (error) {
+      this.logger.error('Error handling unit price view command:', error);
+      const response = 'Erreur lors de la consultation des prix.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle product delete command
+   * Requirements: Allow users to delete products from stock
+   */
+  private async handleProductDeleteCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      if (!command.product) {
+        const response = 'Le nom du produit à supprimer est requis.';
+        await this.sendErrorMessage(phoneNumber, response);
+        return { success: false, message: response };
+      }
+
+      // Check if product exists in stock
+      try {
+        const stockLevel = await this.stockService.getStockLevel(userContext.businessId!, command.product);
+        
+        // Set pending confirmation
+        this.confirmationStateService.setPendingConfirmation(phoneNumber, {
+          type: 'product_delete',
+          data: {
+            product: command.product,
+            businessId: userContext.businessId!,
+            userId: userContext.userId!
+          },
+          timestamp: new Date()
+        });
+
+        // Send confirmation message
+        const stockInfo = stockLevel > 0 ? `\n📦 Stock actuel: ${stockLevel} unité(s)` : '\n📦 Produit en rupture de stock';
+        
+        const confirmationMessage = `⚠️ **Confirmation de suppression**\n\n` +
+          `Êtes-vous sûr de vouloir supprimer le produit "${command.product}" ?${stockInfo}\n\n` +
+          `Cette action supprimera :\n` +
+          `• Le produit du stock\n` +
+          `• Sa configuration d'unités (si elle existe)\n` +
+          `• L'historique des mouvements sera conservé\n\n` +
+          `💡 Pour confirmer, tapez : "confirmer"\n` +
+          `💡 Pour annuler, ignorez ce message (expire dans 5 minutes)`;
+
+        await this.sendErrorMessage(phoneNumber, confirmationMessage);
+
+        return {
+          success: false,
+          message: confirmationMessage,
+          data: { requiresConfirmation: true, product: command.product }
+        };
+
+      } catch (error) {
+        if (error.message.includes('not found')) {
+          const response = `❌ Produit "${command.product}" non trouvé dans le stock.`;
+          await this.sendErrorMessage(phoneNumber, response);
+          return { success: false, message: response };
+        }
+        throw error;
+      }
+
+    } catch (error) {
+      this.logger.error('Error handling product delete command:', error);
+      const response = 'Erreur lors de la préparation de suppression du produit.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle confirm delete command
+   */
+  private async handleConfirmDeleteCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      // Check if there's a pending confirmation
+      const pendingConfirmation = this.confirmationStateService.getPendingConfirmation(phoneNumber);
+      
+      if (!pendingConfirmation) {
+        const response = '❌ Aucune action en attente de confirmation.\n\n💡 Tapez "supprimer [produit]" pour supprimer un produit.';
+        await this.sendErrorMessage(phoneNumber, response);
+        return { success: false, message: response };
+      }
+
+      // Check if confirmation is expired
+      if (this.confirmationStateService.isConfirmationExpired(phoneNumber)) {
+        this.confirmationStateService.clearPendingConfirmation(phoneNumber);
+        const response = '⏰ La demande de confirmation a expiré.\n\n💡 Tapez "supprimer [produit]" pour recommencer.';
+        await this.sendErrorMessage(phoneNumber, response);
+        return { success: false, message: response };
+      }
+
+      // Verify user context matches the pending confirmation
+      if (pendingConfirmation.data.businessId !== userContext.businessId || 
+          pendingConfirmation.data.userId !== userContext.userId) {
+        this.confirmationStateService.clearPendingConfirmation(phoneNumber);
+        const response = '❌ Erreur de validation. Veuillez recommencer la suppression.';
+        await this.sendErrorMessage(phoneNumber, response);
+        return { success: false, message: response };
+      }
+
+      // Execute the deletion
+      if (pendingConfirmation.type === 'product_delete') {
+        const result = await this.stockService.deleteProduct(
+          pendingConfirmation.data.businessId,
+          pendingConfirmation.data.product,
+          pendingConfirmation.data.userId
+        );
+
+        // Clear the pending confirmation
+        this.confirmationStateService.clearPendingConfirmation(phoneNumber);
+
+        if (result.success) {
+          await this.sendSuccessMessage(phoneNumber, result.message);
+        } else {
+          await this.sendErrorMessage(phoneNumber, result.message);
+        }
+
+        return {
+          success: result.success,
+          message: result.message,
+          data: { productDeleted: pendingConfirmation.data.product }
+        };
+      }
+
+      // Unknown confirmation type
+      this.confirmationStateService.clearPendingConfirmation(phoneNumber);
+      const response = '❌ Type de confirmation non reconnu.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+
+    } catch (error) {
+      this.logger.error('Error handling confirm delete command:', error);
+      this.confirmationStateService.clearPendingConfirmation(phoneNumber);
+      const response = 'Erreur lors de la confirmation de suppression.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
    * Handle authentication required scenario
    */
   private async handleAuthenticationRequired(
@@ -773,8 +1530,34 @@ export class BotController {
       case 'sale':
       case 'stock':
       case 'stock_query':
+      case 'unit_stock':
+      case 'unit_view':
+      case 'unit_history':
+      case 'unit_price_view':
         // All authenticated users can perform these actions
         return { allowed: true, message: '' };
+
+      case 'unit_config':
+      case 'unit_price_purchase':
+      case 'unit_price_selling':
+      case 'unit_alert':
+      case 'product_delete':
+        // Unit configuration and product deletion commands - only owners and managers
+        if (role === 'owner' || role === 'manager') {
+          return { allowed: true, message: '' };
+        }
+
+        const actionName = commandType === 'product_delete' ? 
+          'La suppression de produits' : 'La configuration des unités';
+
+        return {
+          allowed: false,
+          message: `❌ **Action non autorisée**\n\n` +
+            `${actionName} est réservée aux propriétaires et managers.\n\n` +
+            `🔑 **Vos permissions (${this.getRoleDisplayName(role)}) :**\n` +
+            `${this.getRolePermissions(role)}\n\n` +
+            `💡 Contactez votre manager pour effectuer cette action.`
+        };
 
       case 'expense':
       case 'balance':
@@ -922,6 +1705,162 @@ export class BotController {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(amount);
+  }
+
+  /**
+   * Handle cart create command
+   */
+  private async handleCartCreateCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      const result = await this.cartCreateHandler.handleCartCreate(phoneNumber, command, userContext);
+      
+      if (result.success) {
+        await this.sendSuccessMessage(phoneNumber, result.message);
+      } else {
+        await this.sendErrorMessage(phoneNumber, result.message);
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error handling cart create command:', error);
+      const response = 'Erreur lors de la création du panier.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle cart add command
+   */
+  private async handleCartAddCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      const result = await this.cartHandlers.handleCartAdd(phoneNumber, command, userContext);
+      
+      if (result.success) {
+        await this.sendSuccessMessage(phoneNumber, result.message);
+      } else {
+        await this.sendErrorMessage(phoneNumber, result.message);
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error handling cart add command:', error);
+      const response = 'Erreur lors de l\'ajout au panier.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle cart remove command
+   */
+  private async handleCartRemoveCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      const result = await this.cartHandlers.handleCartRemove(phoneNumber, command, userContext);
+      
+      if (result.success) {
+        await this.sendSuccessMessage(phoneNumber, result.message);
+      } else {
+        await this.sendErrorMessage(phoneNumber, result.message);
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error handling cart remove command:', error);
+      const response = 'Erreur lors de la suppression du panier.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle cart view command
+   */
+  private async handleCartViewCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      const result = await this.cartHandlers.handleCartView(phoneNumber, command, userContext);
+      
+      if (result.success) {
+        await this.sendSuccessMessage(phoneNumber, result.message);
+      } else {
+        await this.sendErrorMessage(phoneNumber, result.message);
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error handling cart view command:', error);
+      const response = 'Erreur lors de l\'affichage du panier.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle cart finalize command
+   */
+  private async handleCartFinalizeCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      const result = await this.cartHandlers.handleCartFinalize(phoneNumber, command, userContext);
+      
+      if (result.success) {
+        await this.sendSuccessMessage(phoneNumber, result.message);
+      } else {
+        await this.sendErrorMessage(phoneNumber, result.message);
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error handling cart finalize command:', error);
+      const response = 'Erreur lors de la finalisation de la vente.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle cart cancel command
+   */
+  private async handleCartCancelCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      const result = await this.cartHandlers.handleCartCancel(phoneNumber, command, userContext);
+      
+      if (result.success) {
+        await this.sendSuccessMessage(phoneNumber, result.message);
+      } else {
+        await this.sendErrorMessage(phoneNumber, result.message);
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error handling cart cancel command:', error);
+      const response = 'Erreur lors de l\'annulation du panier.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
   }
 
   /**

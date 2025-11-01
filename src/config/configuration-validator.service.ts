@@ -71,24 +71,45 @@ export class ConfigurationValidatorService {
     const errors: string[] = [];
     const warnings: string[] = [];
 
-    const host = this.configService.get<string>('DATABASE_HOST');
-    const port = this.configService.get<number>('DATABASE_PORT');
-    const username = this.configService.get<string>('DATABASE_USERNAME');
-    const password = this.configService.get<string>('DATABASE_PASSWORD');
-    const database = this.configService.get<string>('DATABASE_NAME');
+    // Check if DATABASE_URL is provided (preferred for cloud deployments)
+    const databaseUrl = this.configService.get<string>('DATABASE_URL');
+    
+    if (databaseUrl) {
+      // DATABASE_URL is provided, validate its format
+      try {
+        const url = new URL(databaseUrl);
+        if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:') {
+          errors.push('DATABASE_URL must be a valid PostgreSQL connection string');
+        }
+        if (!url.hostname) {
+          errors.push('DATABASE_URL must include a hostname');
+        }
+        // Valid DATABASE_URL found
+        this.logger.debug('Using DATABASE_URL for database connection');
+      } catch (e) {
+        errors.push('DATABASE_URL is invalid: ' + e.message);
+      }
+    } else {
+      // Fall back to individual env vars
+      const host = this.configService.get<string>('DATABASE_HOST');
+      const port = this.configService.get<number>('DATABASE_PORT');
+      const username = this.configService.get<string>('DATABASE_USERNAME');
+      const password = this.configService.get<string>('DATABASE_PASSWORD');
+      const database = this.configService.get<string>('DATABASE_NAME');
 
-    if (!host) errors.push('DATABASE_HOST is required');
-    if (!port || port < 1 || port > 65535) errors.push('DATABASE_PORT must be a valid port number');
-    if (!username) errors.push('DATABASE_USERNAME is required');
-    if (!password) errors.push('DATABASE_PASSWORD is required');
-    if (!database) errors.push('DATABASE_NAME is required');
+      if (!host) errors.push('DATABASE_HOST or DATABASE_URL is required');
+      if (!port || port < 1 || port > 65535) errors.push('DATABASE_PORT must be a valid port number');
+      if (!username) errors.push('DATABASE_USERNAME is required');
+      if (!password) errors.push('DATABASE_PASSWORD is required');
+      if (!database) errors.push('DATABASE_NAME is required');
 
-    // Warnings for common issues
-    if (password && password.length < 8) {
-      warnings.push('DATABASE_PASSWORD should be at least 8 characters long');
-    }
-    if (username === 'postgres' && this.configService.get('NODE_ENV') === 'production') {
-      warnings.push('Using default postgres username in production is not recommended');
+      // Warnings for common issues
+      if (password && password.length < 8) {
+        warnings.push('DATABASE_PASSWORD should be at least 8 characters long');
+      }
+      if (username === 'postgres' && this.configService.get('NODE_ENV') === 'production') {
+        warnings.push('Using default postgres username in production is not recommended');
+      }
     }
 
     return {

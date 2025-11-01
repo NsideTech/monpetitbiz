@@ -3,7 +3,7 @@ import { ConversationStateService, RegistrationState } from '../conversation-sta
 
 describe('ConversationStateService', () => {
   let service: ConversationStateService;
-  const testPhoneNumber = '+221701234567';
+  const testPhoneNumber = '+226701234567';
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -167,7 +167,7 @@ describe('ConversationStateService', () => {
       expect(service.getActiveConversationCount()).toBe(0);
 
       service.setState(testPhoneNumber, 'type_selection');
-      service.setState('+221701234568', 'business_info');
+      service.setState('+226701234568', 'business_info');
 
       expect(service.getActiveConversationCount()).toBe(2);
 

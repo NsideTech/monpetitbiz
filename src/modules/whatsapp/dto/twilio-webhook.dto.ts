@@ -27,7 +27,7 @@ export class TwilioWebhookPayloadDto {
 
   @ApiProperty({
     description: 'Sender phone number in WhatsApp format',
-    example: 'whatsapp:+221123456789'
+    example: 'whatsapp:+226123456789'
   })
   @IsString()
   From: string;

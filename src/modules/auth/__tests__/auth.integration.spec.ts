@@ -114,7 +114,7 @@ describe('Auth Integration Tests (with in-memory database)', () => {
   });
 
   describe('OTP Flow', () => {
-    const testPhoneNumber = '+221123456789';
+    const testPhoneNumber = '+226123456789';
 
     it('should complete the full OTP authentication flow', async () => {
       // Step 1: Send OTP
@@ -197,7 +197,7 @@ describe('Auth Integration Tests (with in-memory database)', () => {
     });
 
     it('should handle invalid OTP codes', async () => {
-      const invalidPhoneNumber = '+221987654321';
+      const invalidPhoneNumber = '+226987654321';
 
       // Send OTP
       await request(app.getHttpServer())
@@ -221,7 +221,7 @@ describe('Auth Integration Tests (with in-memory database)', () => {
       await request(app.getHttpServer())
         .post('/auth/verify-otp')
         .send({
-          phoneNumber: '+221999999999',
+          phoneNumber: '+226999999999',
           code: '123456',
         })
         .expect(400); // No OTP session found
@@ -230,7 +230,7 @@ describe('Auth Integration Tests (with in-memory database)', () => {
 
   describe('Registration', () => {
     it('should prevent duplicate registrations', async () => {
-      const phoneNumber = '+221555555555';
+      const phoneNumber = '+226555555555';
 
       // First registration
       await request(app.getHttpServer())

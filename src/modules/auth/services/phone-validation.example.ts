@@ -56,7 +56,7 @@ export class PhoneValidationExample {
     // Step 1: Validate phone number format
     const isValidFormat = this.phoneValidationService.validatePhoneNumberFormat(phoneNumber);
     if (!isValidFormat) {
-      throw new Error(`Invalid phone number format: ${phoneNumber}. Please use E.164 format (e.g., +221701234567)`);
+      throw new Error(`Invalid phone number format: ${phoneNumber}. Please use E.164 format (e.g., +226701234567)`);
     }
 
     // Step 2: Extract country information
@@ -116,7 +116,7 @@ export class PhoneValidationExample {
 export const EXAMPLE_PHONE_NUMBERS = {
   // Valid Burkina Faso numbers
   burkina_standard: '+226701234567',
-  burkina_twilio: 'whatsapp:+221701234567',
+  burkina_twilio: 'whatsapp:+226701234567',
   
   // Valid North American numbers
   canada_toronto: '+14161234567',
@@ -131,8 +131,8 @@ export const EXAMPLE_PHONE_NUMBERS = {
   
   // Invalid numbers
   invalid_no_plus: '221701234567',
-  invalid_too_short: '+221123',
-  invalid_too_long: '+2217012345678901234',
+  invalid_too_short: '+226123',
+  invalid_too_long: '+2267012345678901234',
   invalid_format: 'not-a-phone-number',
   empty: '',
 };
@@ -152,12 +152,12 @@ export const USAGE_SCENARIOS = {
   },
   
   existing_owner: {
-    phoneNumber: '+221701234568', // Assume this exists as owner
+    phoneNumber: '+226701234568', // Assume this exists as owner
     expectedAction: 'reject_existing_owner',
   },
   
   existing_employee: {
-    phoneNumber: '+221701234569', // Assume this exists as employee
+    phoneNumber: '+226701234569', // Assume this exists as employee
     expectedAction: 'offer_choice_to_employee',
   },
   

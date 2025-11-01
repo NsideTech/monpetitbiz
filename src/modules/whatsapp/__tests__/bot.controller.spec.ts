@@ -103,7 +103,7 @@ describe('BotController', () => {
   describe('processMessage', () => {
     const mockMessage: ProcessedMessage = {
       messageId: 'test-message-id',
-      from: '+221123456789',
+      from: '+226123456789',
       body: 'vente 1000',
       timestamp: new Date(),
     };
@@ -114,7 +114,7 @@ describe('BotController', () => {
       language: 'fr',
       role: 'owner' as const,
       isActive: true,
-      phoneNumber: '+221123456789',
+      phoneNumber: '+226123456789',
     };
 
     it('should handle sale command successfully', async () => {

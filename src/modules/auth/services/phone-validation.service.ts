@@ -187,7 +187,7 @@ export class PhoneValidationService {
 
             let cleaned = phoneNumber.trim();
 
-            // Handle Twilio WhatsApp format: whatsapp:+221701234567
+            // Handle Twilio WhatsApp format: whatsapp:+226701234567
             if (cleaned.startsWith('whatsapp:')) {
                 cleaned = cleaned.replace('whatsapp:', '');
             }
@@ -233,7 +233,7 @@ export class PhoneValidationService {
 
         let cleaned = phoneNumber.trim();
 
-        // Handle Twilio WhatsApp format: whatsapp:+221701234567
+        // Handle Twilio WhatsApp format: whatsapp:+226701234567
         if (cleaned.startsWith('whatsapp:')) {
             cleaned = cleaned.replace('whatsapp:', '');
         }

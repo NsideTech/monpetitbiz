@@ -639,8 +639,8 @@ export class RegistrationHandlerService {
       'code entreprise', 'code business', 'code invitation',
 
       // Wolof
-      'nanga def', 'asalamu aleykum', 'salaam aleykum',
-      'damay bëgg', 'bëgg naa'
+      // 'nanga def', 'asalamu aleykum', 'salaam aleykum',
+      // 'damay bëgg', 'bëgg naa'
     ];
 
     // Check for exact matches or partial matches

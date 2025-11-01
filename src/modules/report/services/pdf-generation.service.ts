@@ -30,16 +30,24 @@ export class PDFGenerationService {
     private bucketName: string;
 
     constructor(private configService: ConfigService) {
-        // Initialize AWS S3 client
-        this.s3Client = new S3Client({
-            region: this.configService.get('AWS_REGION', 'us-east-1'),
-            credentials: {
-                accessKeyId: this.configService.get('AWS_ACCESS_KEY_ID'),
-                secretAccessKey: this.configService.get('AWS_SECRET_ACCESS_KEY'),
-            },
-        });
-
-        this.bucketName = this.configService.get('AWS_S3_BUCKET_NAME', 'monpetitbiz-reports');
+        // Initialize AWS S3 client only if credentials are provided
+        const awsAccessKey = this.configService.get('AWS_ACCESS_KEY_ID');
+        const awsSecretKey = this.configService.get('AWS_SECRET_ACCESS_KEY');
+        
+        if (awsAccessKey && awsSecretKey) {
+            this.s3Client = new S3Client({
+                region: this.configService.get('AWS_REGION', 'us-east-1'),
+                credentials: {
+                    accessKeyId: awsAccessKey,
+                    secretAccessKey: awsSecretKey,
+                },
+            });
+            this.bucketName = this.configService.get('AWS_S3_BUCKET_NAME', 'monpetitbiz-reports');
+            this.logger.log('AWS S3 client initialized for PDF storage');
+        } else {
+            this.logger.warn('AWS credentials not found. PDF generation will be disabled or use alternative storage.');
+            // S3 client will remain undefined
+        }
 
         // Register Handlebars helpers
         this.registerHandlebarsHelpers();
@@ -67,6 +75,15 @@ export class PDFGenerationService {
      */
     async generatePDFReport(options: PDFGenerationOptions): Promise<PDFResult> {
         try {
+            // Check if S3 is configured
+            if (!this.s3Client) {
+                this.logger.warn('AWS S3 not configured, PDF generation disabled');
+                return {
+                    success: false,
+                    error: 'PDF generation requires AWS S3 configuration (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_BUCKET_NAME)'
+                };
+            }
+
             this.logger.log(`Generating PDF report for business ${options.businessId}`);
 
             // Generate PDF buffer
@@ -85,6 +102,15 @@ export class PDFGenerationService {
             };
         } catch (error) {
             this.logger.error(`Failed to generate PDF report: ${error.message}`, error.stack);
+            
+            // On Vercel or if Puppeteer is disabled, return helpful error message
+            if (process.env.VERCEL === '1' || process.env.DISABLE_PUPPETEER === 'true') {
+                return {
+                    success: false,
+                    error: 'PDF generation is not available on this platform. Please use an external PDF service or configure Puppeteer with Chrome Lambda layer.'
+                };
+            }
+            
             return {
                 success: false,
                 error: error.message
@@ -96,14 +122,35 @@ export class PDFGenerationService {
      * Generate PDF buffer using Puppeteer
      */
     private async generatePDFBuffer(options: PDFGenerationOptions): Promise<Buffer> {
+        // Check if Puppeteer is disabled (e.g., on Vercel)
+        const puppeteerDisabled = process.env.DISABLE_PUPPETEER === 'true' || process.env.VERCEL === '1';
+        
+        if (puppeteerDisabled) {
+            throw new Error('PDF generation is disabled on this platform. Use a serverless PDF service or enable Puppeteer.');
+        }
+
         let browser: puppeteer.Browser | null = null;
 
         try {
-            // Launch browser
-            browser = await puppeteer.launch({
+            // Launch browser with Vercel-compatible options
+            const launchOptions: any = {
                 headless: true,
-                args: ['--no-sandbox', '--disable-setuid-sandbox']
-            });
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--single-process'
+                ]
+            };
+
+            // For Vercel/serverless environments
+            if (process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+                // Try to use Chrome from layer or fallback
+                launchOptions.executablePath = process.env.CHROME_EXECUTABLE_PATH;
+            }
+
+            browser = await puppeteer.launch(launchOptions);
 
             const page = await browser.newPage();
 
@@ -125,9 +172,17 @@ export class PDFGenerationService {
             });
 
             return Buffer.from(pdfBuffer);
+        } catch (error) {
+            this.logger.warn(`Puppeteer PDF generation failed: ${error.message}`);
+            // Re-throw to be handled by caller
+            throw error;
         } finally {
             if (browser) {
-                await browser.close();
+                try {
+                    await browser.close();
+                } catch (error) {
+                    this.logger.warn(`Failed to close browser: ${error.message}`);
+                }
             }
         }
     }
@@ -205,6 +260,10 @@ export class PDFGenerationService {
      * Upload PDF to S3 and return signed URL
      */
     private async uploadToS3(pdfBuffer: Buffer, fileName: string): Promise<string> {
+        if (!this.s3Client) {
+            throw new Error('S3 client not initialized. AWS credentials are required.');
+        }
+
         const key = `reports/${fileName}`;
 
         const command = new PutObjectCommand({

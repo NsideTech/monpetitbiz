@@ -24,7 +24,7 @@ describe('RegistrationHandlerService - Merchant Onboarding', () => {
 
   const mockAuthService = {
     registerBusinessOwner: jest.fn().mockImplementation((phoneNumber) => {
-      if (phoneNumber === '+221701234567') {
+      if (phoneNumber === '+226701234567') {
         throw new Error('User with this phone number already exists.');
       }
       return Promise.resolve({
@@ -105,7 +105,7 @@ describe('RegistrationHandlerService - Merchant Onboarding', () => {
 
   describe('Merchant Onboarding Intent Detection', () => {
     it('should detect "créer une nouvelle entreprise" intent', async () => {
-      const phoneNumber = '+221701234567';
+      const phoneNumber = '+226701234567';
       const message = 'créer une nouvelle entreprise';
 
       mockConversationStateService.getRegistrationState.mockReturnValue(null);
@@ -137,7 +137,7 @@ describe('RegistrationHandlerService - Merchant Onboarding', () => {
       for (const message of testCases) {
         mockConversationStateService.getRegistrationState.mockReturnValue(null);
         
-        const result = await service.handleRegistrationMessage('+221701234567', message);
+        const result = await service.handleRegistrationMessage('+226701234567', message);
         
         expect(result.nextStep).toBe('merchant_onboarding_start');
         expect(result.message).toContain('CRÉATION D\'UNE NOUVELLE ENTREPRISE');
@@ -147,7 +147,7 @@ describe('RegistrationHandlerService - Merchant Onboarding', () => {
 
   describe('Merchant Onboarding Flow', () => {
     it('should handle merchant onboarding start step', async () => {
-      const phoneNumber = '+221701234567';
+      const phoneNumber = '+226701234567';
       const message = 'continuer';
       const state = {
         step: 'merchant_onboarding_start' as const,
@@ -169,7 +169,7 @@ describe('RegistrationHandlerService - Merchant Onboarding', () => {
     });
 
     it('should show help message when user does not provide confirmation', async () => {
-      const phoneNumber = '+221701234567';
+      const phoneNumber = '+226701234567';
       const message = 'test';
       const state = {
         step: 'merchant_onboarding_start' as const,
@@ -187,7 +187,7 @@ describe('RegistrationHandlerService - Merchant Onboarding', () => {
     });
 
     it('should handle business name collection', async () => {
-      const phoneNumber = '+221701234567';
+      const phoneNumber = '+226701234567';
       const businessName = 'Boutique Fatou';
       const state = {
         step: 'merchant_business_name' as const,
@@ -213,7 +213,7 @@ describe('RegistrationHandlerService - Merchant Onboarding', () => {
     });
 
     it('should handle owner name collection', async () => {
-      const phoneNumber = '+221701234567';
+      const phoneNumber = '+226701234567';
       const ownerName = 'Fabrice Ilboudo';
       const businessName = 'Boutique Fatou';
       const state = {
@@ -242,7 +242,7 @@ describe('RegistrationHandlerService - Merchant Onboarding', () => {
     });
 
     it('should handle merchant confirmation and create business', async () => {
-      const phoneNumber = '+221701234567';
+      const phoneNumber = '+226701234567';
       const message = 'confirmer';
       const businessName = 'Boutique Fatou';
       const ownerName = 'Fabrice Ilboudo';
@@ -290,7 +290,7 @@ describe('RegistrationHandlerService - Merchant Onboarding', () => {
 
   describe('Input Validation', () => {
     it('should reject business name that is too short', async () => {
-      const phoneNumber = '+221701234567';
+      const phoneNumber = '+226701234567';
       const shortName = 'A';
       const state = {
         step: 'merchant_business_name' as const,
@@ -308,7 +308,7 @@ describe('RegistrationHandlerService - Merchant Onboarding', () => {
     });
 
     it('should reject owner name that is too short', async () => {
-      const phoneNumber = '+221701234567';
+      const phoneNumber = '+226701234567';
       const shortName = 'A';
       const state = {
         step: 'merchant_owner_name' as const,
@@ -329,7 +329,7 @@ describe('RegistrationHandlerService - Merchant Onboarding', () => {
 
   describe('Error Handling', () => {
     it('should handle registration errors gracefully', async () => {
-      const phoneNumber = '+221701234567';
+      const phoneNumber = '+226701234567';
       const message = 'confirmer';
       const state = {
         step: 'merchant_confirmation' as const,
@@ -354,7 +354,7 @@ describe('RegistrationHandlerService - Merchant Onboarding', () => {
 
   describe('Help and Cancel', () => {
     it('should provide help at any step', async () => {
-      const phoneNumber = '+221701234567';
+      const phoneNumber = '+226701234567';
       const message = 'aide';
       const state = {
         step: 'merchant_business_name' as const,
@@ -372,7 +372,7 @@ describe('RegistrationHandlerService - Merchant Onboarding', () => {
     });
 
     it('should allow cancellation at any step', async () => {
-      const phoneNumber = '+221701234567';
+      const phoneNumber = '+226701234567';
       const message = 'stop';
       const state = {
         step: 'merchant_business_name' as const,

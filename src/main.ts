@@ -59,11 +59,15 @@ async function bootstrap() {
         transform: true,
     }));
 
-    // Enable CORS for web dashboard
+    // Enable CORS for web dashboard and Vercel
     app.enableCors({
         origin: process.env.NODE_ENV === 'production'
-            ? process.env.FRONTEND_URL
-            : 'http://localhost:3001',
+            ? [
+                process.env.FRONTEND_URL,
+                /\.vercel\.app$/,
+                process.env.APP_URL
+              ].filter(Boolean)
+            : true,
         credentials: true,
     });
 
@@ -154,10 +158,18 @@ async function bootstrap() {
     const protocol = useHttps ? 'https' : 'http';
 
     await app.listen(port);
-    console.log(`🚀 Application is running on: ${protocol}://localhost:${port}`);
-    console.log(`📚 API Documentation available at: ${protocol}://localhost:${port}/api`);
     
-    if (useHttps) {
+    const baseUrl = process.env.NODE_ENV === 'production' 
+        ? process.env.APP_URL || `${protocol}://localhost:${port}`
+        : `${protocol}://localhost:${port}`;
+    
+    console.log(`🚀 Application is running on: ${baseUrl}`);
+    console.log(`📚 API Documentation available at: ${baseUrl}/api`);
+    console.log(`🏥 Health check available at: ${baseUrl}/health`);
+    
+    if (process.env.NODE_ENV === 'production') {
+        console.log('🌐 Production mode - Vercel deployment');
+    } else if (useHttps) {
         console.log('🔒 HTTPS is enabled');
     } else {
         console.log('🔓 HTTP mode (set USE_HTTPS=true for HTTPS)');

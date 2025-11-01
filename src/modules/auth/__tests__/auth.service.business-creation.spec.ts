@@ -21,7 +21,7 @@ describe('AuthService - Business Creation', () => {
 
   const mockUser = {
     id: 'user-id',
-    phoneNumber: '+221701234567',
+    phoneNumber: '+226701234567',
     employeeName: 'John Doe',
     businessId: 'business-id',
     role: UserRole.OWNER,
@@ -119,7 +119,7 @@ describe('AuthService - Business Creation', () => {
 
   describe('createBusinessWithOwner', () => {
     const validRequest: BusinessCreationRequest = {
-      phoneNumber: '+221701234567',
+      phoneNumber: '+226701234567',
       businessName: 'Test Business',
       ownerName: 'John Doe',
       country: 'SN',
@@ -204,7 +204,7 @@ describe('AuthService - Business Creation', () => {
       // Mock country extraction
       jest.spyOn(phoneValidationService, 'extractCountryFromWhatsApp').mockResolvedValue({
         country: 'SN',
-        formattedNumber: '+221701234567',
+        formattedNumber: '+226701234567',
         isValid: true,
       });
 
@@ -230,7 +230,7 @@ describe('AuthService - Business Creation', () => {
 
       const result = await service.createBusinessWithOwner(requestWithoutCountry);
 
-      expect(phoneValidationService.extractCountryFromWhatsApp).toHaveBeenCalledWith('+221701234567');
+      expect(phoneValidationService.extractCountryFromWhatsApp).toHaveBeenCalledWith('+226701234567');
       expect(result.business.country).toBe('SN');
     });
 
@@ -251,7 +251,7 @@ describe('AuthService - Business Creation', () => {
       // Mock failed country extraction
       jest.spyOn(phoneValidationService, 'extractCountryFromWhatsApp').mockResolvedValue({
         country: '',
-        formattedNumber: '+221701234567',
+        formattedNumber: '+226701234567',
         isValid: false,
       });
 

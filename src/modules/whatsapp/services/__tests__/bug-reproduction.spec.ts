@@ -10,7 +10,7 @@ describe('Bug Reproduction - Exact User Scenario', () => {
     let registrationHandler: RegistrationHandlerService;
     let conversationState: ConversationStateService;
 
-    const testPhoneNumber = '+221701234567';
+    const testPhoneNumber = '+226701234567';
 
     beforeEach(async () => {
         const mockAuthService = {

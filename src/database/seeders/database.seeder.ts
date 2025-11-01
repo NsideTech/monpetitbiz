@@ -71,13 +71,13 @@ export class DatabaseSeeder {
     
     const usersData = [
       {
-        phoneNumber: '+221701234567',
+        phoneNumber: '+226701234567',
         businessId: businesses[0].id,
         role: UserRole.OWNER,
         language: 'fr'
       },
       {
-        phoneNumber: '+221701234568',
+        phoneNumber: '+226701234568',
         businessId: businesses[0].id,
         role: UserRole.SELLER,
         language: 'fr'

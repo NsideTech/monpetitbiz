@@ -49,11 +49,11 @@ describe('PhoneValidationService', () => {
     });
 
     it('should extract country from Twilio WhatsApp format', async () => {
-      const result = await service.extractCountryFromWhatsApp('whatsapp:+221701234567');
+      const result = await service.extractCountryFromWhatsApp('whatsapp:+226701234567');
       
       expect(result.isValid).toBe(true);
       expect(result.country).toBe('SN');
-      expect(result.formattedNumber).toBe('+221701234567');
+      expect(result.formattedNumber).toBe('+226701234567');
     });
 
     it('should handle Mali phone number', async () => {
@@ -101,11 +101,11 @@ describe('PhoneValidationService', () => {
     it('should return exists false for non-existent phone number', async () => {
       userRepository.findOne.mockResolvedValue(null);
       
-      const result = await service.checkPhoneNumberStatus('+221701234567');
+      const result = await service.checkPhoneNumberStatus('+226701234567');
       
       expect(result.exists).toBe(false);
       expect(userRepository.findOne).toHaveBeenCalledWith({
-        where: { phoneNumber: '+221701234567' },
+        where: { phoneNumber: '+226701234567' },
         relations: ['business'],
       });
     });
@@ -114,7 +114,7 @@ describe('PhoneValidationService', () => {
       const mockBusiness = { id: 'business-1', name: 'Test Business' } as Business;
       const mockUser = {
         id: 'user-1',
-        phoneNumber: '+221701234567',
+        phoneNumber: '+226701234567',
         role: UserRole.OWNER,
         businessId: 'business-1',
         business: mockBusiness,
@@ -122,7 +122,7 @@ describe('PhoneValidationService', () => {
 
       userRepository.findOne.mockResolvedValue(mockUser);
       
-      const result = await service.checkPhoneNumberStatus('+221701234567');
+      const result = await service.checkPhoneNumberStatus('+226701234567');
       
       expect(result.exists).toBe(true);
       expect(result.userType).toBe('owner');
@@ -135,7 +135,7 @@ describe('PhoneValidationService', () => {
       const mockBusiness = { id: 'business-1', name: 'Test Business' } as Business;
       const mockUser = {
         id: 'user-1',
-        phoneNumber: '+221701234567',
+        phoneNumber: '+226701234567',
         role: UserRole.SELLER,
         businessId: 'business-1',
         business: mockBusiness,
@@ -143,7 +143,7 @@ describe('PhoneValidationService', () => {
 
       userRepository.findOne.mockResolvedValue(mockUser);
       
-      const result = await service.checkPhoneNumberStatus('+221701234567');
+      const result = await service.checkPhoneNumberStatus('+226701234567');
       
       expect(result.exists).toBe(true);
       expect(result.userType).toBe('employee');
@@ -155,7 +155,7 @@ describe('PhoneValidationService', () => {
 
   describe('validatePhoneNumberFormat', () => {
     it('should validate correct E.164 format', () => {
-      expect(service.validatePhoneNumberFormat('+221701234567')).toBe(true);
+      expect(service.validatePhoneNumberFormat('+226701234567')).toBe(true);
       expect(service.validatePhoneNumberFormat('+223701234567')).toBe(true);
       expect(service.validatePhoneNumberFormat('+224701234567')).toBe(true);
       expect(service.validatePhoneNumberFormat('+14161234567')).toBe(true); // Canada
@@ -164,14 +164,14 @@ describe('PhoneValidationService', () => {
 
     it('should reject invalid formats', () => {
       expect(service.validatePhoneNumberFormat('221701234567')).toBe(false); // Missing +
-      expect(service.validatePhoneNumberFormat('+221')).toBe(false); // Too short
-      expect(service.validatePhoneNumberFormat('+2217012345678901234')).toBe(false); // Too long
+      expect(service.validatePhoneNumberFormat('+226')).toBe(false); // Too short
+      expect(service.validatePhoneNumberFormat('+2267012345678901234')).toBe(false); // Too long
       expect(service.validatePhoneNumberFormat('invalid')).toBe(false);
       expect(service.validatePhoneNumberFormat('')).toBe(false);
     });
 
     it('should handle Twilio WhatsApp format', () => {
-      expect(service.validatePhoneNumberFormat('whatsapp:+221701234567')).toBe(true);
+      expect(service.validatePhoneNumberFormat('whatsapp:+226701234567')).toBe(true);
     });
   });
 
@@ -183,7 +183,7 @@ describe('PhoneValidationService', () => {
 
     it('should correctly identify Mali numbers', () => {
       expect(service.isFromCountry('+223701234567', 'ML')).toBe(true);
-      expect(service.isFromCountry('+221701234567', 'ML')).toBe(false);
+      expect(service.isFromCountry('+226701234567', 'ML')).toBe(false);
     });
 
     it('should correctly identify Canadian numbers', () => {

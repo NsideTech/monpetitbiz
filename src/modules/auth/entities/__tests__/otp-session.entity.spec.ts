@@ -18,12 +18,12 @@ describe('OtpSession Entity', () => {
       expect(otpSession.constructor.name).toBe('OtpSession');
       
       // Set properties to test they exist
-      otpSession.phoneNumber = '+221701234567';
+      otpSession.phoneNumber = '+226701234567';
       otpSession.code = '123456';
       otpSession.expiresAt = new Date();
       otpSession.attempts = 0;
 
-      expect(otpSession.phoneNumber).toBe('+221701234567');
+      expect(otpSession.phoneNumber).toBe('+226701234567');
       expect(otpSession.code).toBe('123456');
       expect(otpSession.expiresAt).toBeInstanceOf(Date);
       expect(otpSession.attempts).toBe(0);
@@ -39,20 +39,20 @@ describe('OtpSession Entity', () => {
 
   describe('Property Validation', () => {
     it('should accept valid OTP session data', () => {
-      otpSession.phoneNumber = '+221701234567';
+      otpSession.phoneNumber = '+226701234567';
       otpSession.code = '123456';
       otpSession.expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
       otpSession.attempts = 0;
 
-      expect(otpSession.phoneNumber).toBe('+221701234567');
+      expect(otpSession.phoneNumber).toBe('+226701234567');
       expect(otpSession.code).toBe('123456');
       expect(otpSession.expiresAt).toBeInstanceOf(Date);
       expect(otpSession.attempts).toBe(0);
     });
 
     it('should validate phone number as primary key', () => {
-      otpSession.phoneNumber = '+221701234567';
-      expect(otpSession.phoneNumber).toBe('+221701234567');
+      otpSession.phoneNumber = '+226701234567';
+      expect(otpSession.phoneNumber).toBe('+226701234567');
     });
 
     it('should validate phone number length constraint', () => {
@@ -156,8 +156,8 @@ describe('OtpSession Entity', () => {
   describe('Phone Number Validation', () => {
     it('should accept valid phone number formats', () => {
       const validPhoneNumbers = [
-        '+221701234567',
-        '+221771234567',
+        '+226701234567',
+        '+226771234567',
         '+33123456789',
         '+1234567890'
       ];
@@ -169,15 +169,15 @@ describe('OtpSession Entity', () => {
     });
 
     it('should handle phone number as primary key constraint', () => {
-      otpSession.phoneNumber = '+221701234567';
+      otpSession.phoneNumber = '+226701234567';
       // In a real database scenario, duplicate phone numbers would replace existing sessions
-      expect(otpSession.phoneNumber).toBe('+221701234567');
+      expect(otpSession.phoneNumber).toBe('+226701234567');
     });
   });
 
   describe('Business Logic Validation', () => {
     it('should validate complete OTP session', () => {
-      otpSession.phoneNumber = '+221701234567';
+      otpSession.phoneNumber = '+226701234567';
       otpSession.code = '123456';
       otpSession.expiresAt = new Date(Date.now() + 5 * 60 * 1000);
       otpSession.attempts = 0;
@@ -190,7 +190,7 @@ describe('OtpSession Entity', () => {
     });
 
     it('should handle OTP verification logic', () => {
-      otpSession.phoneNumber = '+221701234567';
+      otpSession.phoneNumber = '+226701234567';
       otpSession.code = '123456';
       otpSession.expiresAt = new Date(Date.now() + 5 * 60 * 1000);
       otpSession.attempts = 1;

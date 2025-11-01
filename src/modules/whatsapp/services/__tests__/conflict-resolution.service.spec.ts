@@ -35,7 +35,7 @@ describe('ConflictResolutionService', () => {
         exists: false,
       });
 
-      const result = await service.checkAndResolveConflict('+221701234567');
+      const result = await service.checkAndResolveConflict('+226701234567');
 
       expect(result.conflictType).toBe('no_conflict');
       expect(result.canProceed).toBe(true);
@@ -50,7 +50,7 @@ describe('ConflictResolutionService', () => {
         businessId: 'test-id',
       });
 
-      const result = await service.checkAndResolveConflict('+221701234567');
+      const result = await service.checkAndResolveConflict('+226701234567');
 
       expect(result.conflictType).toBe('owner_exists');
       expect(result.canProceed).toBe(false);
@@ -66,7 +66,7 @@ describe('ConflictResolutionService', () => {
         businessId: 'test-id',
       });
 
-      const result = await service.checkAndResolveConflict('+221701234567');
+      const result = await service.checkAndResolveConflict('+226701234567');
 
       expect(result.conflictType).toBe('employee_exists');
       expect(result.canProceed).toBe(true);
@@ -77,7 +77,7 @@ describe('ConflictResolutionService', () => {
 
   describe('processEmployeeChoice', () => {
     it('should handle create business choice', async () => {
-      const result = await service.processEmployeeChoice('+221701234567', 'nouvelle entreprise');
+      const result = await service.processEmployeeChoice('+226701234567', 'nouvelle entreprise');
 
       expect(result.shouldProceed).toBe(true);
       expect(result.action).toBe('create_business');
@@ -85,7 +85,7 @@ describe('ConflictResolutionService', () => {
     });
 
     it('should handle stay employee choice', async () => {
-      const result = await service.processEmployeeChoice('+221701234567', 'rester employé');
+      const result = await service.processEmployeeChoice('+226701234567', 'rester employé');
 
       expect(result.shouldProceed).toBe(false);
       expect(result.action).toBe('stay_employee');
@@ -93,7 +93,7 @@ describe('ConflictResolutionService', () => {
     });
 
     it('should handle invalid choice', async () => {
-      const result = await service.processEmployeeChoice('+221701234567', 'invalid choice');
+      const result = await service.processEmployeeChoice('+226701234567', 'invalid choice');
 
       expect(result.shouldProceed).toBe(false);
       expect(result.action).toBe('invalid_choice');

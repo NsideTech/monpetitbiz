@@ -68,6 +68,8 @@ describe('PDFGenerationService', () => {
         users: [],
         transactions: [],
         stockItems: [],
+        productUnits: [],
+        stockMovements: [],
       };
 
       const mockReportData: BalanceReport = {
@@ -133,6 +135,8 @@ describe('PDFGenerationService', () => {
         users: [],
         transactions: [],
         stockItems: [],
+        productUnits: [],
+        stockMovements: [],
       };
 
       const mockReportData: BalanceReport = {

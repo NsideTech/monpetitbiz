@@ -163,14 +163,14 @@ describe('Transaction Entity', () => {
 
     it('should have many-to-one relationship with user', () => {
       const user = new User();
-      user.phoneNumber = '+221701234567';
+      user.phoneNumber = '+226701234567';
       user.role = UserRole.OWNER;
 
       transaction.user = user;
       transaction.userId = user.id;
 
       expect(transaction.user).toBeInstanceOf(User);
-      expect(transaction.user.phoneNumber).toBe('+221701234567');
+      expect(transaction.user.phoneNumber).toBe('+226701234567');
     });
   });
 

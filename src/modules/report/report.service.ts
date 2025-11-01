@@ -397,6 +397,21 @@ export class ReportService {
       if (!pdfResult.success) {
         this.logger.warn(`PDF generation failed for business ${businessId}: ${pdfResult.error}`);
         
+        // If PDF generation is disabled (e.g., on Vercel), fallback to text report
+        if (process.env.VERCEL === '1' || process.env.DISABLE_PUPPETEER === 'true') {
+          this.logger.log('PDF generation disabled, sending text report instead');
+          const textReport = await this.generateTextReport(businessId, period);
+          await this.twilioWhatsAppService.sendMessage(
+            userPhoneNumber,
+            `Voici votre rapport financier pour la période: ${period}\n\n${textReport}`
+          );
+          
+          return {
+            success: true,
+            message: 'Rapport envoyé en format texte (PDF non disponible sur cette plateforme)'
+          };
+        }
+        
         // Fallback to text report if PDF generation fails
         const textReport = await this.generateTextReport(businessId, period);
         await this.twilioWhatsAppService.sendMessage(

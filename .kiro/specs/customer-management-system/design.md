@@ -305,7 +305,7 @@ enum CustomerErrorType {
 const CustomerErrorMessages = {
   CUSTOMER_NOT_FOUND: "❌ Client non trouvé. Vérifiez le nom ou numéro, ou tapez 'client nouveau [nom] [téléphone]' pour créer un nouveau client.",
   DUPLICATE_CUSTOMER: "⚠️ Ce numéro existe déjà. Tapez 'client info [numéro]' pour voir les détails.",
-  INVALID_PHONE_NUMBER: "❌ Format de numéro invalide. Utilisez le format: +221XXXXXXXXX",
+  INVALID_PHONE_NUMBER: "❌ Format de numéro invalide. Utilisez le format: +226XXXXXXXXX",
   INSUFFICIENT_POINTS: "❌ Points insuffisants. Solde actuel: {balance} points.",
   CUSTOMER_INACTIVE: "⚠️ Client inactif. Tapez 'client activer [nom]' pour réactiver.",
   UNAUTHORIZED_ACCESS: "❌ Accès non autorisé à ces données client."

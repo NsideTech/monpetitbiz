@@ -234,7 +234,7 @@ export class WhatsappController {
       type: 'object',
       properties: {
         MessageSid: { type: 'string', example: 'SM1234567890abcdef1234567890abcdef' },
-        AccountSid: { type: 'string', example: 'xxxxxxxxxxxxxxxxx' },
+        AccountSid: { type: 'string', example: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
         MessagingServiceSid: { type: 'string', example: 'MG1234567890abcdef1234567890abcdef' },
         From: { type: 'string', example: 'whatsapp:+226123456789' },
         To: { type: 'string', example: 'whatsapp:+14155238886' },
@@ -415,7 +415,7 @@ export class WhatsappController {
     // Create a mock Twilio payload
     const twilioPayload = {
       MessageSid: `SM${Math.random().toString(36).substring(2, 34)}`,
-      AccountSid: 'xxxxxxxxxxxxxxxxx',
+      AccountSid: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
       MessagingServiceSid: 'MG1234567890abcdef1234567890abcdef',
       From: `whatsapp:${body.from}`,
       To: 'whatsapp:+14155238886',

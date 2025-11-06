@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ConfigurationValidatorService } from './config/configuration-validator.service';
 import { TwilioConfigService } from './config/twilio.config';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import * as express from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -34,9 +35,13 @@ async function bootstrap() {
         }
     }
 
-    const app = await NestFactory.create(AppModule, {
+    const app = await NestFactory.create<NestExpressApplication>(AppModule, {
         httpsOptions,
     });
+
+    // Serve static files from public directory (for Speed Insights script)
+    const publicPath = path.join(process.cwd(), 'public');
+    app.useStaticAssets(publicPath);
 
     // Validate configuration on startup
     console.log('🔍 Validating system configuration...');
@@ -157,6 +162,10 @@ async function bootstrap() {
             .swagger-ui .topbar { display: none }
             .swagger-ui .info .title { color: #2c5aa0 }
         `,
+        customJs: [
+            // Vercel Speed Insights for Web Vitals tracking
+            '/vercel-speed-insights.js',
+        ],
         swaggerOptions: {
             persistAuthorization: true,
             displayRequestDuration: true,

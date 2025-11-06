@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import * as express from 'express';
 import * as bodyParser from 'body-parser';
+import * as path from 'path';
 import type { NestApplicationOptions } from '@nestjs/common';
 
 export async function createNestApplication(expressInstance?: express.Express, options?: NestApplicationOptions) {
@@ -54,6 +55,10 @@ export async function createNestApplication(expressInstance?: express.Express, o
         credentials: true,
     });
 
+    // Serve static files from public directory (for Speed Insights script)
+    const publicPath = path.join(process.cwd(), 'public');
+    app.use(express.static(publicPath));
+
     // Swagger/OpenAPI
     const useHttps = process.env.USE_HTTPS === 'true';
     const config = new DocumentBuilder()
@@ -79,6 +84,10 @@ export async function createNestApplication(expressInstance?: express.Express, o
     SwaggerModule.setup('api', app, document, {
         customSiteTitle: 'MonPetitBiz API Documentation',
         customfavIcon: '/favicon.ico',
+        customJs: [
+            // Vercel Speed Insights for Web Vitals tracking
+            '/vercel-speed-insights.js',
+        ],
         swaggerOptions: {
             persistAuthorization: true,
             displayRequestDuration: true,

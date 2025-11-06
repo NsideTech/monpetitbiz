@@ -6,6 +6,7 @@ import { ConfigurationValidatorService } from './config/configuration-validator.
 import { ConfigService } from '@nestjs/config';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import * as express from 'express';
+import * as bodyParser from 'body-parser';
 import type { NestApplicationOptions } from '@nestjs/common';
 
 export async function createNestApplication(expressInstance?: express.Express, options?: NestApplicationOptions) {
@@ -20,6 +21,18 @@ export async function createNestApplication(expressInstance?: express.Express, o
     }
 
     // Raw body for webhook signature verification
+    // Twilio sends application/x-www-form-urlencoded, not JSON
+    // Store raw body for signature verification, then parse as URL-encoded
+    app.use('/whatsapp/twilio/webhook', (req: express.Request, res: express.Response, next: express.NextFunction) => {
+      // Store raw body for signature verification
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => chunks.push(chunk));
+      req.on('end', () => {
+        (req as any).rawBody = Buffer.concat(chunks);
+        // Parse URL-encoded body for NestJS @Body() decorator
+        bodyParser.urlencoded({ extended: true })(req, res, next);
+      });
+    });
     app.use('/whatsapp/webhook', express.raw({ type: 'application/json' }));
 
     // Global validation pipe

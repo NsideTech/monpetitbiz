@@ -10,7 +10,9 @@ import {
   UnauthorizedException,
   RawBodyRequest,
   Req,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiBody } from '@nestjs/swagger';
 import { TwilioConfigService } from '../../../config/twilio.config';
 import { TwilioMessageParser, ProcessedTwilioMessage } from '../services/twilio-message-parser.service.js';
@@ -64,9 +66,10 @@ export class TwilioWebhookController {
   @ApiResponse({ status: 401, description: 'Invalid signature' })
   async handleTwilioWebhook(
     @Req() req: any,
+    @Res() res: Response,
     @Body() payload: TwilioWebhookPayloadDto,
     @Headers('x-twilio-signature') signature?: string,
-  ): Promise<{ success: boolean; message: string }> {
+  ): Promise<void> {
     this.logger.log('Twilio webhook message received');
     this.logger.debug('Twilio payload:', {
       MessageSid: payload.MessageSid,
@@ -95,10 +98,10 @@ export class TwilioWebhookController {
       // Check for message deduplication using parser
       if (this.twilioMessageParser.isMessageProcessed(payload.MessageSid)) {
         this.logger.log(`Duplicate message detected: ${payload.MessageSid}`);
-        return {
-          success: true,
-          message: 'Duplicate message ignored'
-        };
+        // Return TwiML response without charset (Twilio requirement)
+        res.setHeader('Content-Type', 'text/xml');
+        res.status(HttpStatus.OK).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+        return;
       }
 
       // Convert to internal webhook format and process
@@ -115,20 +118,28 @@ export class TwilioWebhookController {
 
       this.logger.log(`Twilio webhook processed successfully: ${result.messagesProcessed} messages`);
 
-      return {
-        success: true,
-        message: 'Message processed successfully'
-      };
+      // Return TwiML response (Twilio expects XML, not JSON)
+      // Content-Type must be text/xml without charset=utf-8
+      res.setHeader('Content-Type', 'text/xml');
+      res.status(HttpStatus.OK).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
     } catch (error) {
       this.logger.error('Twilio webhook processing failed:', error);
 
-      // Return appropriate error response
-      if (error instanceof BadRequestException || error instanceof UnauthorizedException) {
-        throw error;
+      // Return appropriate error response as TwiML
+      res.setHeader('Content-Type', 'text/xml');
+      
+      if (error instanceof UnauthorizedException) {
+        res.status(HttpStatus.UNAUTHORIZED).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+        return;
+      }
+      
+      if (error instanceof BadRequestException) {
+        res.status(HttpStatus.BAD_REQUEST).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+        return;
       }
 
       // For unexpected errors, return 500 to trigger Twilio retry
-      throw new BadRequestException('Failed to process webhook');
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
     }
   }
 

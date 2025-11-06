@@ -258,6 +258,7 @@ export class PDFGenerationService {
 
     /**
      * Upload PDF to S3 and return signed URL
+     * Includes response-content-type parameter to ensure Twilio receives proper Content-Type header
      */
     private async uploadToS3(pdfBuffer: Buffer, fileName: string): Promise<string> {
         if (!this.s3Client) {
@@ -273,18 +274,37 @@ export class PDFGenerationService {
             ContentType: 'application/pdf',
             ContentDisposition: `attachment; filename="${fileName}"`,
             // Set expiration for 30 days
-            Expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+            Expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            // Ensure metadata is set for proper Content-Type
+            Metadata: {
+                'content-type': 'application/pdf'
+            }
         });
 
         await this.s3Client.send(command);
 
         // Generate signed URL valid for 24 hours
+        // Include response-content-type parameter to force correct Content-Type header
+        // This is required for Twilio to properly process the media URL
         const getCommand = new GetObjectCommand({
             Bucket: this.bucketName,
-            Key: key
+            Key: key,
+            ResponseContentType: 'application/pdf',
+            ResponseContentDisposition: `attachment; filename="${fileName}"`
         });
 
-        return await getSignedUrl(this.s3Client, getCommand, { expiresIn: 24 * 60 * 60 });
+        let signedUrl = await getSignedUrl(this.s3Client, getCommand, { expiresIn: 24 * 60 * 60 });
+        
+        // Ensure response-content-type parameter is in the URL for Twilio compatibility
+        // Some AWS SDK versions may not include it properly, so we add it manually if missing
+        if (!signedUrl.includes('response-content-type')) {
+            const separator = signedUrl.includes('?') ? '&' : '?';
+            signedUrl = `${signedUrl}${separator}response-content-type=application%2Fpdf`;
+        }
+        
+        this.logger.debug(`Generated S3 signed URL for ${fileName} with Content-Type: application/pdf`);
+        
+        return signedUrl;
     }
 
     /**

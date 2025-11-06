@@ -112,14 +112,26 @@ export class WhatsappService {
             continue;
           }
 
-          // Add to processing queue
-          this.logger.debug(`Enqueueing message ${message.messageId} to message queue...`);
-          await this.messageQueue.enqueue(message);
-          messagesProcessed++;
-
-          this.logger.log(`Successfully queued message ${message.messageId} for processing`);
+          // For Vercel serverless, we need to process critical messages synchronously
+          // to ensure they complete before the function terminates
+          // Critical messages include registration/onboarding commands
+          const isCriticalMessage = this.isCriticalMessage(message);
+          
+          if (isCriticalMessage) {
+            this.logger.log(`Processing critical message ${message.messageId} synchronously for Vercel compatibility`);
+            // Process synchronously to ensure completion on Vercel
+            await this.processMessageSynchronously(message);
+            messagesProcessed++;
+            this.logger.log(`Successfully processed critical message ${message.messageId}`);
+          } else {
+            // Add to processing queue for non-critical messages
+            this.logger.debug(`Enqueueing message ${message.messageId} to message queue...`);
+            await this.messageQueue.enqueue(message);
+            messagesProcessed++;
+            this.logger.log(`Successfully queued message ${message.messageId} for processing`);
+          }
         } catch (error) {
-          const errorMsg = `Failed to queue message ${message.messageId}: ${error.message}`;
+          const errorMsg = `Failed to process message ${message.messageId}: ${error.message}`;
           this.logger.error(errorMsg, error.stack);
           errors.push(errorMsg);
         }
@@ -139,6 +151,57 @@ export class WhatsappService {
    */
   async getQueueStats(): Promise<any> {
     return this.messageQueue.getQueueStats();
+  }
+
+  /**
+   * Check if a message is critical and should be processed synchronously
+   * Critical messages include registration/onboarding commands that need immediate response
+   */
+  private isCriticalMessage(message: any): boolean {
+    const messageBody = (message.body || '').toLowerCase().trim();
+    
+    // Critical keywords for registration/onboarding
+    const criticalKeywords = [
+      'créer une nouvelle entreprise',
+      'créer nouvelle entreprise',
+      'nouvelle entreprise',
+      'créer entreprise',
+      'inscription',
+      'register',
+      'bonjour',
+      'hello',
+      'aide',
+      'help'
+    ];
+    
+    return criticalKeywords.some(keyword => messageBody.includes(keyword));
+  }
+
+  /**
+   * Process a message synchronously (for critical messages on Vercel)
+   * This ensures the message is processed before the serverless function terminates
+   */
+  private async processMessageSynchronously(message: any): Promise<void> {
+    try {
+      // Use the message queue's bot controller to process the message directly
+      // This bypasses the async queue for critical messages
+      const botController = this.messageQueue.getBotController();
+      
+      if (botController) {
+        this.logger.debug(`Processing message ${message.messageId} synchronously via BotController`);
+        await botController.processMessage(message);
+        this.logger.debug(`Successfully processed message ${message.messageId} synchronously`);
+      } else {
+        // Fallback to queue if bot controller not available
+        this.logger.warn('Bot controller not available, falling back to queue');
+        await this.messageQueue.enqueue(message);
+      }
+    } catch (error) {
+      this.logger.error(`Error processing message ${message.messageId} synchronously:`, error);
+      this.logger.error(`Error stack: ${error.stack}`);
+      // Fallback to queue on error
+      await this.messageQueue.enqueue(message);
+    }
   }
 
   /**

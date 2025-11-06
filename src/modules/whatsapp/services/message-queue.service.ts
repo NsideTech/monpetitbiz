@@ -106,6 +106,14 @@ export class MessageQueueService {
   }
 
   /**
+   * Get the bot controller for direct message processing
+   * Used for synchronous processing of critical messages on Vercel
+   */
+  getBotController(): IBotController | null {
+    return this.botController;
+  }
+
+  /**
    * Process message using bot controller
    */
   private async simulateProcessing(message: QueuedMessage): Promise<void> {

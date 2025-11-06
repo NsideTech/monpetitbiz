@@ -154,11 +154,11 @@ export class WebhookSecurityService {
 
   /**
    * Extract and validate phone number ID from payload
+   * Accepts Twilio payloads (phone_number_id: 'twilio_phone_id') and Meta payloads
    */
   validatePhoneNumberId(payload: any): boolean {
     try {
       const expectedPhoneNumberId = this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID');
-      this.logger.log('expectedPhoneNumberId', expectedPhoneNumberId);
       
       if (!expectedPhoneNumberId) {
         this.logger.warn('WHATSAPP_PHONE_NUMBER_ID not configured - skipping validation');
@@ -168,6 +168,12 @@ export class WebhookSecurityService {
       for (const entry of payload.entry) {
         for (const change of entry.changes) {
           const phoneNumberId = change.value?.metadata?.phone_number_id;
+          
+          // Accept Twilio phone number ID (converted payloads use 'twilio_phone_id')
+          if (phoneNumberId === 'twilio_phone_id' || phoneNumberId === 'twilio-converted') {
+            this.logger.debug('Twilio phone number ID detected, skipping Meta validation');
+            return true;
+          }
           
           if (phoneNumberId && phoneNumberId !== expectedPhoneNumberId) {
             this.logger.error('Phone number ID mismatch', {

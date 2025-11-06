@@ -106,22 +106,34 @@ export class TwilioWebhookController {
 
       // Convert to internal webhook format and process
       const internalPayload = this.convertToInternalFormat(processedMessage, payload);
+      this.logger.debug('Converted payload to internal format:', {
+        messageId: processedMessage.messageId,
+        from: processedMessage.from,
+        body: processedMessage.body.substring(0, 50)
+      });
 
+      this.logger.log('Processing webhook via WhatsAppService...');
       const result = await this.whatsappService.processWebhook(
         internalPayload,
         undefined, // No Meta signature for Twilio
         JSON.stringify(internalPayload)
       );
 
+      this.logger.log(`WhatsAppService processed webhook: ${result.messagesProcessed} messages queued, ${result.errors.length} errors`);
+      if (result.errors.length > 0) {
+        this.logger.error('Errors during webhook processing:', result.errors);
+      }
+
       // Mark message as processed for deduplication
       this.twilioMessageParser.markMessageAsProcessed(payload.MessageSid);
 
-      this.logger.log(`Twilio webhook processed successfully: ${result.messagesProcessed} messages`);
+      this.logger.log(`Twilio webhook processed successfully: ${result.messagesProcessed} messages queued`);
 
       // Return TwiML response (Twilio expects XML, not JSON)
       // Content-Type must be text/xml without charset=utf-8
       res.setHeader('Content-Type', 'text/xml');
       res.status(HttpStatus.OK).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+      this.logger.debug('TwiML response sent to Twilio');
     } catch (error) {
       this.logger.error('Twilio webhook processing failed:', error);
 

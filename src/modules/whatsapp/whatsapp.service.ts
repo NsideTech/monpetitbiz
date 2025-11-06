@@ -92,16 +92,20 @@ export class WhatsappService {
       }
 
       // Parse messages from payload
+      this.logger.debug('Parsing messages from webhook payload...');
       const messages = this.messageParser.parseWebhookPayload(payload);
+      this.logger.debug(`Parsed ${messages.length} messages from payload`);
       
       if (messages.length === 0) {
-        this.logger.debug('No processable messages found in webhook payload');
+        this.logger.warn('No processable messages found in webhook payload');
         return { messagesProcessed: 0, errors: [] };
       }
 
       // Process each message
       for (const message of messages) {
         try {
+          this.logger.debug(`Processing message ${message.messageId} from ${message.from}`);
+          
           // Check for duplicates
           if (this.messageParser.isDuplicateMessage(message.messageId)) {
             this.logger.warn(`Skipping duplicate message: ${message.messageId}`);
@@ -109,13 +113,14 @@ export class WhatsappService {
           }
 
           // Add to processing queue
+          this.logger.debug(`Enqueueing message ${message.messageId} to message queue...`);
           await this.messageQueue.enqueue(message);
           messagesProcessed++;
 
-          this.logger.debug(`Queued message ${message.messageId} for processing`);
+          this.logger.log(`Successfully queued message ${message.messageId} for processing`);
         } catch (error) {
           const errorMsg = `Failed to queue message ${message.messageId}: ${error.message}`;
-          this.logger.error(errorMsg);
+          this.logger.error(errorMsg, error.stack);
           errors.push(errorMsg);
         }
       }

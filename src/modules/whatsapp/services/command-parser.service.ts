@@ -169,9 +169,9 @@ export class CommandParserService {
       /^(?:prix|price)\s+(\w+)$/i,
     ],
     productDelete: [
-      // Format: supprimer [produit], supprimer produit [produit], delete [produit]
-      /^(?:supprimer|delete|effacer|remove)\s+(?:produit\s+)?(\w+)$/i,
-      /^(?:produit\s+)?(?:supprimer|delete|effacer|remove)\s+(\w+)$/i,
+      // Format: supprimer produit [produit] (obligatoire: "produit" doit être présent)
+      /^(?:supprimer|delete|effacer|remove)\s+produit\s+(\w+)$/i,
+      /^produit\s+(?:supprimer|delete|effacer|remove)\s+(\w+)$/i,
     ],
     confirmDelete: [
       // Format: confirmer, oui, yes

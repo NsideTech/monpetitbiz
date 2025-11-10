@@ -28,6 +28,7 @@ export interface UserContext {
   language?: string;
   role?: 'owner' | 'seller' | 'manager';
   isAuthenticated: boolean;
+  dbError?: boolean; // Indicates if there was a database connection error
 }
 
 @Injectable()

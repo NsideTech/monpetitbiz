@@ -63,21 +63,27 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
       ? { rejectUnauthorized: false } 
       : false,
     // Connection pool configuration
-    // Optimized for serverless (Vercel/Lambda)
-    extra: {
-      // Serverless: 1 connection per function instance
-      max: isProduction ? 1 : (isSupabase ? 10 : 20),
-      // Serverless: No idle connections
-      min: isProduction ? 0 : 2,
-      // Close idle connections quickly in serverless
-      idleTimeoutMillis: isProduction ? 10000 : 30000,
-      // Faster connection timeout for serverless
-      connectionTimeoutMillis: isProduction ? 5000 : 10000,
-      // Faster query timeout for serverless
-      query_timeout: isProduction ? 30000 : 60000,
-      // Statement timeout in milliseconds
-      statement_timeout: isProduction ? 30000 : 60000,
-    },
+    // Optimized for serverless (Vercel/Lambda) vs persistent containers (Render/Railway)
+    extra: (() => {
+      const isServerless = process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME;
+      return {
+        // Serverless: 1 connection per function instance
+        // Persistent containers: Larger pool for better performance
+        max: isServerless ? 1 : (isProduction ? 20 : 20),
+        // Serverless: No idle connections
+        // Persistent containers: Keep connections alive
+        min: isServerless ? 0 : (isProduction ? 2 : 2),
+        // Serverless: Close idle connections quickly
+        // Persistent containers: Keep connections longer
+        idleTimeoutMillis: isServerless ? 10000 : (isProduction ? 30000 : 30000),
+        // Connection timeout
+        connectionTimeoutMillis: isServerless ? 5000 : (isProduction ? 10000 : 10000),
+        // Query timeout
+        query_timeout: isServerless ? 30000 : (isProduction ? 60000 : 60000),
+        // Statement timeout in milliseconds
+        statement_timeout: isServerless ? 30000 : (isProduction ? 60000 : 60000),
+      };
+    })(),
     // Retry configuration
     retryAttempts: 5,
     retryDelay: 3000,

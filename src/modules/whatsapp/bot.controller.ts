@@ -81,6 +81,56 @@ export class BotController {
       // Get user context
       const userContext = await this.getUserContext(message.from);
 
+      // If there was a database connection error, retry once and inform user
+      if (userContext.dbError) {
+        this.logger.warn(`Database connection error for ${message.from}, retrying...`);
+        
+        // Retry once after a short delay
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const retryContext = await this.getUserContext(message.from);
+        
+        // If retry also fails, inform user about connection issue
+        if (retryContext.dbError) {
+          const errorMessage = "🔧 **Problème de connexion**\n\n" +
+            "Nous avons des difficultés à nous connecter à la base de données.\n\n" +
+            "⏰ Veuillez réessayer dans quelques instants.\n\n" +
+            "💡 Si le problème persiste, contactez le support.";
+          await this.sendErrorMessage(message.from, errorMessage);
+          return {
+            success: false,
+            message: errorMessage,
+            requiresAuth: false
+          };
+        }
+        
+        // Retry succeeded, use the retry context
+        Object.assign(userContext, retryContext);
+      }
+
+      // Check if this is a greeting message (bonjour, bonsoir, allo)
+      const isGreeting = this.isGreetingMessage(message.body);
+      
+      if (isGreeting) {
+        // If user is authenticated, ask what they want to do
+        if (userContext.isAuthenticated) {
+          return await this.handleGreetingForAuthenticatedUser(message.from, userContext);
+        } else {
+          // If user is not authenticated, start onboarding
+          this.logger.log(`Greeting from unauthenticated user ${message.from}, starting onboarding`);
+          const registrationResult = await this.registrationHandlerService.handleRegistrationMessage(
+            message.from,
+            message.body
+          );
+          
+          if (registrationResult.nextStep !== 'not_registration') {
+            return await this.handleRegistrationFlow(message);
+          }
+          
+          // Fallback to authentication required
+          return await this.handleAuthenticationRequired(message.from, null);
+        }
+      }
+
       // If user is not authenticated, check if this is a registration intent
       if (!userContext.isAuthenticated) {
         const registrationResult = await this.registrationHandlerService.handleRegistrationMessage(
@@ -156,6 +206,9 @@ export class BotController {
 
       case 'stock_query':
         return await this.handleStockQueryCommand(phoneNumber, command, userContext);
+
+      case 'product_list':
+        return await this.handleProductListCommand(phoneNumber, command, userContext);
 
       case 'balance':
         return await this.handleBalanceCommand(phoneNumber, command, userContext);
@@ -470,6 +523,84 @@ export class BotController {
     } catch (error) {
       this.logger.error('Error handling quantity sale:', error);
       const response = 'Erreur lors du traitement de la vente par quantité.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Handle product list command
+   * Returns list of all products with stock and prices
+   */
+  private async handleProductListCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      const products = await this.stockService.getAllProductsWithPrices(userContext.businessId!);
+
+      if (products.length === 0) {
+        const response = '📦 Aucun produit enregistré.\n\n💡 Commencez par ajouter des produits avec "stock [produit] [quantité]"';
+        await this.sendSuccessMessage(phoneNumber, response);
+        return {
+          success: true,
+          message: response,
+          data: { products: [] }
+        };
+      }
+
+      let response = '📋 **LISTE DES PRODUITS**\n\n';
+      let totalValue = 0;
+      let hasPrices = false;
+
+      products.forEach((item, index) => {
+        response += `${index + 1}. **${item.product}**\n`;
+        response += `   📦 Stock: ${item.quantity} unité${item.quantity > 1 ? 's' : ''}`;
+        
+        if (item.unitPrice) {
+          hasPrices = true;
+          response += `\n   💰 Prix: ${this.formatCurrency(item.unitPrice)}/unité`;
+          const itemValue = item.quantity * item.unitPrice;
+          totalValue += itemValue;
+          response += `\n   💵 Valeur: ${this.formatCurrency(itemValue)}`;
+        } else {
+          response += `\n   💡 Prix non défini`;
+        }
+
+        // Add stock status warnings
+        if (item.stockStatus === 'out') {
+          response += '\n   ⚠️ **Rupture de stock**';
+        } else if (item.stockStatus === 'low') {
+          response += '\n   ⚠️ **Stock faible**';
+        }
+
+        response += '\n\n';
+      });
+
+      // Add summary
+      response += `━━━━━━━━━━━━━━━━━\n`;
+      response += `📊 **Total:** ${products.length} produit${products.length > 1 ? 's' : ''}\n`;
+      
+      if (hasPrices && totalValue > 0) {
+        response += `💰 **Valeur totale du stock:** ${this.formatCurrency(totalValue)}\n`;
+      }
+
+      await this.sendSuccessMessage(phoneNumber, response);
+
+      return {
+        success: true,
+        message: response,
+        data: { 
+          products,
+          totalCount: products.length,
+          totalValue: hasPrices ? totalValue : null
+        }
+      };
+
+    } catch (error) {
+      this.logger.error('Error handling product list command:', error);
+      const response = 'Erreur lors de la récupération de la liste des produits.';
       await this.sendErrorMessage(phoneNumber, response);
       return { success: false, message: response };
     }
@@ -1332,7 +1463,12 @@ export class BotController {
   ): Promise<BotResponse> {
     try {
       if (!command.product) {
-        const response = 'Le nom du produit à supprimer est requis.';
+        const response = '❌ Format incorrect.\n\n' +
+          '💡 Utilisez: "supprimer produit [nom_produit]"\n\n' +
+          '**Exemples:**\n' +
+          '• "supprimer produit pain"\n' +
+          '• "delete produit lait"\n' +
+          '• "effacer produit biscuit"';
         await this.sendErrorMessage(phoneNumber, response);
         return { success: false, message: response };
       }
@@ -1530,6 +1666,7 @@ export class BotController {
       case 'sale':
       case 'stock':
       case 'stock_query':
+      case 'product_list':
       case 'unit_stock':
       case 'unit_view':
       case 'unit_history':
@@ -1655,7 +1792,115 @@ export class BotController {
   }
 
   /**
+   * Check if message is a greeting (bonjour, bonsoir, allo, etc.)
+   */
+  private isGreetingMessage(message: string): boolean {
+    const normalizedMessage = message.toLowerCase().trim();
+    
+    const greetingKeywords = [
+      'bonjour',
+      'bonsoir',
+      'allo',
+      'salut',
+      'hello',
+      'hi',
+      'hey',
+      'coucou',
+      'bon matin',
+      'bonne journée',
+      'bonne soirée'
+    ];
+    
+    // Check for exact matches or simple greetings
+    return greetingKeywords.some(keyword => 
+      normalizedMessage === keyword || 
+      normalizedMessage.startsWith(keyword + ' ') ||
+      normalizedMessage === keyword + '!'
+    );
+  }
+
+  /**
+   * Handle greeting message for authenticated users
+   * Ask what they want to do
+   */
+  private async handleGreetingForAuthenticatedUser(
+    phoneNumber: string,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      const greetingMessage = this.getGreetingMessage(userContext);
+      await this.sendSuccessMessage(phoneNumber, greetingMessage);
+      
+      return {
+        success: true,
+        message: greetingMessage,
+        data: { isGreeting: true }
+      };
+    } catch (error) {
+      this.logger.error(`Error handling greeting for ${phoneNumber}:`, error);
+      const response = 'Erreur lors du traitement de votre message.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
+    }
+  }
+
+  /**
+   * Generate greeting message asking what user wants to do
+   */
+  private getGreetingMessage(userContext: UserContext): string {
+    const role = userContext.role || 'seller';
+    const businessName = userContext.businessName || 'votre entreprise';
+    
+    let message = `👋 **Bonjour !**\n\n`;
+    
+    if (userContext.businessName) {
+      message += `Bienvenue dans ${businessName} !\n\n`;
+    }
+    
+    message += `**Que souhaitez-vous faire aujourd'hui ?**\n\n`;
+    
+    // Role-based options
+    if (role === 'owner' || role === 'manager') {
+      message += `💰 **Ventes et Dépenses**\n`;
+      message += `• "vente [produit] [montant]" - Enregistrer une vente\n`;
+      message += `• "dépense [montant] [description]" - Enregistrer une dépense\n\n`;
+      
+      message += `📦 **Gestion du Stock**\n`;
+      message += `• "produits" - Voir la liste complète des produits\n`;
+      message += `• "stock [produit] [quantité]" - Mettre à jour le stock\n`;
+      message += `• "stock [produit]" - Voir le stock d'un produit\n`;
+      message += `• "stock" - Voir tout le stock\n`;
+      message += `• "supprimer produit [nom]" - Supprimer un produit (nécessite confirmation)\n\n`;
+      
+      message += `📊 **Rapports et Bilans**\n`;
+      message += `• "bilan" - Voir le bilan du jour\n`;
+      message += `• "rapport [période]" - Générer un rapport\n`;
+      message += `• "transactions" - Voir les transactions\n\n`;
+    } else if (role === 'seller') {
+      message += `💰 **Ventes**\n`;
+      message += `• "vente [produit] [montant]" - Enregistrer une vente\n\n`;
+      
+      message += `📦 **Stock**\n`;
+      message += `• "produits" - Voir la liste complète des produits\n`;
+      message += `• "stock [produit]" - Voir le stock d'un produit\n`;
+      message += `• "stock" - Voir tout le stock\n`;
+      message += `• "stock [produit] [quantité]" - Mettre à jour le stock\n\n`;
+    }
+    
+    message += `💡 **Aide**\n`;
+    message += `• "aide" - Voir toutes les commandes disponibles\n\n`;
+    
+    message += `💬 **Exemples**\n`;
+    message += `• "vente pain 500"\n`;
+    message += `• "stock pain"\n`;
+    message += `• "bilan"`;
+    
+    return message;
+  }
+
+  /**
    * Get user context from phone number
+   * Handles database connection errors gracefully
    */
   private async getUserContext(phoneNumber: string): Promise<UserContext> {
     try {
@@ -1676,8 +1921,74 @@ export class BotController {
 
     } catch (error) {
       this.logger.error(`Error getting user context for ${phoneNumber}:`, error);
+      
+      // Check if this is a database connection error
+      const isDbError = this.isDatabaseConnectionError(error);
+      
+      if (isDbError) {
+        this.logger.warn(`Database connection error detected for ${phoneNumber}, will retry`);
+        // Return context indicating DB error (not authentication failure)
+        return { 
+          isAuthenticated: false,
+          dbError: true 
+        };
+      }
+      
+      // For other errors, assume user is not authenticated
       return { isAuthenticated: false };
     }
+  }
+
+  /**
+   * Check if error is a database connection error
+   */
+  private isDatabaseConnectionError(error: any): boolean {
+    if (!error) return false;
+
+    // TypeORM connection errors
+    if (error.code === 'ECONNREFUSED' || 
+        error.code === 'ENOTFOUND' ||
+        error.code === 'ETIMEDOUT' ||
+        error.code === 'ECONNRESET' ||
+        error.code === 'EPIPE') {
+      return true;
+    }
+
+    // PostgreSQL connection errors
+    if (error.code === '57P01' || // admin_shutdown
+        error.code === '57P02' || // crash_shutdown
+        error.code === '57P03' || // cannot_connect_now
+        error.code === '08003' || // connection_does_not_exist
+        error.code === '08006' || // connection_failure
+        error.code === '08001' || // sqlclient_unable_to_establish_sqlconnection
+        error.code === '08004' || // sqlserver_rejected_establishment_of_sqlconnection
+        error.code === '08007') { // transaction_resolution_unknown
+      return true;
+    }
+
+    // TypeORM QueryFailedError with connection issues
+    if (error.name === 'QueryFailedError' || 
+        error.name === 'ConnectionError' ||
+        error.name === 'ConnectionTimeoutError') {
+      return true;
+    }
+
+    // Check error message for connection-related keywords
+    const errorMessage = error.message?.toLowerCase() || '';
+    const connectionKeywords = [
+      'connection',
+      'connect',
+      'timeout',
+      'refused',
+      'network',
+      'database',
+      'postgres',
+      'econnrefused',
+      'enotfound',
+      'etimedout'
+    ];
+
+    return connectionKeywords.some(keyword => errorMessage.includes(keyword));
   }
 
   /**

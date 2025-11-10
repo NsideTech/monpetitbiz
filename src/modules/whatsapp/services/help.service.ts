@@ -255,7 +255,7 @@ export class HelpService {
    * Stock-specific help
    */
   private getStockHelpMessage(userRole?: string): string {
-    return `📦 **AIDE - GESTION DU STOCK**\n\n` +
+    let message = `📦 **AIDE - GESTION DU STOCK**\n\n` +
            `📝 **METTRE À JOUR LE STOCK :**\n\n` +
            `• "stock pain 10" - Mettre le stock de pain à 10 unités\n` +
            `• "stock riz 25" - Mettre le stock de riz à 25 unités\n` +
@@ -264,9 +264,20 @@ export class HelpService {
            `🔍 **CONSULTER LE STOCK :**\n\n` +
            `• "stock pain" - Voir le stock de pain\n` +
            `• "stock" - Voir tout le stock\n` +
-           `• "voir stock" - Afficher l'inventaire complet\n\n` +
-           
-           `⚠️ **ALERTES AUTOMATIQUES :**\n\n` +
+           `• "produits" - Voir la liste complète des produits avec prix\n` +
+           `• "voir stock" - Afficher l'inventaire complet\n\n`;
+    
+    // Add product deletion help only for owners and managers
+    if (userRole === 'owner' || userRole === 'manager') {
+      message += `🗑️ **SUPPRIMER UN PRODUIT :**\n\n` +
+                 `• "supprimer produit pain" - Supprimer le produit "pain"\n` +
+                 `• "delete produit [nom]" - Supprimer un produit (en anglais)\n` +
+                 `• "effacer produit [nom]" - Autre format\n\n` +
+                 `⚠️ **Note:** La suppression nécessite une confirmation.\n` +
+                 `Tapez "confirmer" après la demande de suppression.\n\n`;
+    }
+    
+    message += `⚠️ **ALERTES AUTOMATIQUES :**\n\n` +
            `• Stock à 0 : ⚠️ Rupture de stock\n` +
            `• Stock ≤ 5 : ⚠️ Stock faible\n` +
            `• Les ventes décrémenteront automatiquement le stock\n\n` +
@@ -278,6 +289,8 @@ export class HelpService {
            
            `📊 **SUIVI :**\n` +
            `L'historique des mouvements de stock est conservé pour vos analyses.`;
+    
+    return message;
   }
 
   /**

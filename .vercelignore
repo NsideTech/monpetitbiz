@@ -1,0 +1,74 @@
+# Vercel ignore file - Exclude unnecessary files from deployment
+
+# Development files
+*.log
+*.md
+!README.md
+!DEPLOYMENT.md
+!SETUP-GUIDE.md
+!VERCEL-READY.md
+!VERCEL-CHECKLIST.md
+
+# Test files
+test/
+tests/
+__tests__/
+*.spec.ts
+*.spec.js
+*.test.ts
+*.test.js
+
+# Development tools
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+# Documentation (keep only essential)
+docs/
+
+# Scripts (keep only necessary ones)
+scripts/
+
+# Infrastructure
+infra/
+serverless.yml
+
+# Environment files (use Vercel env vars instead)
+.env
+.env.local
+.env.*.local
+
+# IDE
+.DS_Store
+*.iml
+
+# Misc
+node_modules/.cache/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# SSL certificates (not needed on Vercel)
+ssl/
+
+# Simulators
+whatsapp-offline-simulator.html
+
+# Database files
+supabase-schema.sql
+
+# Build artifacts that will be regenerated
+# Don't ignore dist/ - we need it!

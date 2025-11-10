@@ -225,6 +225,9 @@ export class BotController {
       case 'price_set':
         return await this.handlePriceSetCommand(phoneNumber, command, userContext);
 
+      case 'product_add':
+        return await this.handleProductAddCommand(phoneNumber, command, userContext);
+
       // Unit command handlers
       case 'unit_config':
         return await this.handleUnitConfigCommand(phoneNumber, command, userContext);
@@ -797,6 +800,70 @@ export class BotController {
    * Handle price set command
    * Sets unit price for a product (simple pricing without units)
    */
+  /**
+   * Handle product add command
+   */
+  private async handleProductAddCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      if (!command.product || !command.product.trim()) {
+        const response = '❌ Veuillez spécifier le nom du produit.\n\n' +
+          '📝 Format: ajout produit \'nom_produit\'\n' +
+          '💡 Exemple: ajout produit \'pain\'';
+        await this.sendErrorMessage(phoneNumber, response);
+        return { success: false, message: response };
+      }
+
+      const productName = command.product.trim();
+
+      // If price is provided, create product with price directly
+      if (command.unitPrice && command.unitPrice > 0) {
+        const stockItem = await this.stockService.setUnitPrice(
+          userContext.businessId!,
+          productName,
+          command.unitPrice
+        );
+
+        let response = `✅ Produit ajouté : ${stockItem.product}\n`;
+        response += `💰 Prix unitaire: ${this.formatCurrency(command.unitPrice)}\n\n`;
+        response += `💡 Ajoutez du stock avec:\nstock ${stockItem.product} [quantité]`;
+
+        await this.sendSuccessMessage(phoneNumber, response);
+
+        return {
+          success: true,
+          message: response,
+          data: { stockItem }
+        };
+      }
+
+      // If no price provided, ask for price
+      const response = `📦 **Ajout de produit : ${productName}**\n\n` +
+        `💰 Veuillez spécifier le prix unitaire :\n\n` +
+        `📝 Format: prix ${productName} [montant]\n` +
+        `💡 Exemple: prix ${productName} 500\n\n` +
+        `Ou utilisez: ajout produit '${productName}' [montant]`;
+
+      await this.sendMessage(phoneNumber, response);
+
+      return {
+        success: true,
+        message: response,
+        data: { productName, waitingForPrice: true }
+      };
+
+    } catch (error) {
+      this.logger.error(`Error handling product add command for ${phoneNumber}:`, error);
+      const errorResponse = '❌ Erreur lors de l\'ajout du produit.\n\n' +
+        '💡 Vérifiez le format et réessayez.';
+      await this.sendErrorMessage(phoneNumber, errorResponse);
+      return { success: false, message: errorResponse };
+    }
+  }
+
   private async handlePriceSetCommand(
     phoneNumber: string,
     command: any,
@@ -1673,6 +1740,17 @@ export class BotController {
       case 'unit_price_view':
         // All authenticated users can perform these actions
         return { allowed: true, message: '' };
+
+      case 'product_add':
+      case 'price_set':
+        // Product add and price set - only owners and managers
+        if (role === 'owner' || role === 'manager') {
+          return { allowed: true, message: '' };
+        }
+        return {
+          allowed: false,
+          message: '❌ Seuls les propriétaires et managers peuvent ajouter des produits ou définir des prix.'
+        };
 
       case 'unit_config':
       case 'unit_price_purchase':

@@ -31,21 +31,112 @@ export class OnboardingMessagesService {
    * Requirement 5.1: WHEN l'entreprise est créée avec succès THEN le système SHALL envoyer un message de confirmation
    * Requirement 5.2: WHEN l'entreprise est créée avec succès THEN le système SHALL fournir les détails de l'entreprise créée
    */
-  getSuccessConfirmationMessage(businessDetails: BusinessDetails): string {
+  getSuccessConfirmationMessage(businessDetails: BusinessDetails, products?: Array<{ name: string; price: number }>, skipped?: boolean): string {
     const { businessName, ownerName, businessCode } = businessDetails;
 
-    return `🎉 **Félicitations ! Votre entreprise a été créée avec succès !**\n\n` +
+    let message = `🎉 **Félicitations ! Votre entreprise a été créée avec succès !**\n\n` +
       `✅ **Détails de votre entreprise :**\n` +
       `🏢 **Nom :** ${businessName}\n` +
       `👤 **Propriétaire :** ${ownerName}\n` +
-      `🔑 **Code entreprise :** ${businessCode}\n\n` +
-      `📋 **Prochaines étapes :**\n` +
+      `🔑 **Code entreprise :** ${businessCode}\n\n`;
+
+    if (products && products.length > 0) {
+      message += `📦 **Produits configurés (${products.length}) :**\n`;
+      products.forEach((product, index) => {
+        message += `${index + 1}. ${product.name} - ${product.price} FCFA\n`;
+      });
+      message += `\n`;
+    } else if (skipped) {
+      message += `💡 **Note :** Vous pouvez ajouter des produits plus tard avec la commande "prix [nom_produit] [montant]"\n\n`;
+    }
+
+    message += `📋 **Prochaines étapes :**\n` +
       `• Partagez le code ${businessCode} avec vos employés\n` +
       `• Commencez à enregistrer vos ventes avec "vente"\n` +
       `• Gérez votre stock avec "stock"\n` +
       `• Consultez vos rapports avec "rapport"\n\n` +
       `💡 Tapez "aide" à tout moment pour voir toutes les commandes disponibles.\n\n` +
       `Bienvenue dans votre nouveau système de gestion ! 🚀`;
+
+    return message;
+  }
+
+  /**
+   * Get product setup start message
+   */
+  getProductSetupStartMessage(businessName: string, businessCode: string): string {
+    return `🎉 **Entreprise créée avec succès !**\n\n` +
+      `✅ **Votre entreprise :** ${businessName}\n` +
+      `🔑 **Code entreprise :** ${businessCode}\n\n` +
+      `📦 **Configuration des produits**\n\n` +
+      `Maintenant, configurons vos produits avec leurs prix unitaires.\n\n` +
+      `💡 **Format :** \`nom_produit: prix\`\n` +
+      `**Exemples :**\n` +
+      `• Pain: 500\n` +
+      `• Lait: 750\n` +
+      `• Riz: 1200\n\n` +
+      `📝 **Commandes disponibles :**\n` +
+      `• Ajoutez un produit : \`nom_produit: prix\`\n` +
+      `• Terminer : \`terminer\` ou \`fin\`\n` +
+      `• Passer cette étape : \`passer\`\n` +
+      `• Aide : \`aide\`\n\n` +
+      `Commencez par ajouter votre premier produit ! 🚀`;
+  }
+
+  /**
+   * Get product added confirmation message
+   */
+  getProductAddedMessage(productName: string, price: number, totalProducts: number): string {
+    return `✅ **Produit ajouté !**\n\n` +
+      `📦 **${productName}** - ${price} FCFA\n\n` +
+      `📊 **Total :** ${totalProducts} produit${totalProducts > 1 ? 's' : ''} configuré${totalProducts > 1 ? 's' : ''}\n\n` +
+      `💡 **Prochaines actions :**\n` +
+      `• Ajoutez un autre produit : \`nom_produit: prix\`\n` +
+      `• Terminer : \`terminer\` ou \`fin\`\n` +
+      `• Passer cette étape : \`passer\`\n\n` +
+      `Continuez à ajouter vos produits ! 🚀`;
+  }
+
+  /**
+   * Get product setup help message
+   */
+  getProductSetupHelpMessage(): string {
+    return `ℹ️ **Aide - Configuration des produits**\n\n` +
+      `📦 **Pourquoi configurer les produits ?**\n` +
+      `• Facilite l'enregistrement des ventes\n` +
+      `• Permet de suivre les prix automatiquement\n` +
+      `• Améliore la gestion de votre stock\n\n` +
+      `💡 **Format :** \`nom_produit: prix\`\n\n` +
+      `✅ **Exemples valides :**\n` +
+      `• Pain: 500\n` +
+      `• Lait: 750\n` +
+      `• Riz: 1200\n` +
+      `• Tomate: 300\n` +
+      `• Huile: 1500\n\n` +
+      `📝 **Commandes disponibles :**\n` +
+      `• \`nom_produit: prix\` - Ajouter un produit\n` +
+      `• \`terminer\` ou \`fin\` - Terminer la configuration\n` +
+      `• \`passer\` - Passer cette étape (vous pourrez ajouter des produits plus tard)\n` +
+      `• \`aide\` - Afficher cette aide\n\n` +
+      `💡 **Conseil :** Vous pouvez ajouter autant de produits que vous voulez. Tapez "terminer" quand vous avez fini !`;
+  }
+
+  /**
+   * Get product setup error message
+   */
+  getProductSetupErrorMessage(): string {
+    return `❌ **Format incorrect**\n\n` +
+      `💡 **Format attendu :** \`nom_produit: prix\`\n\n` +
+      `✅ **Exemples valides :**\n` +
+      `• Pain: 500\n` +
+      `• Lait: 750\n` +
+      `• Riz: 1200\n\n` +
+      `📝 **Autres formats acceptés :**\n` +
+      `• Pain - 500\n` +
+      `• Pain à 500\n` +
+      `• Pain 500 FCFA\n\n` +
+      `🔄 **Réessayez avec le format :** \`nom_produit: prix\`\n\n` +
+      `💡 Tapez "aide" pour plus d'informations.`;
   }
 
   /**

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 export interface ParsedCommand {
-  type: 'sale' | 'expense' | 'stock' | 'stock_query' | 'product_list' | 'price_set' | 'balance' | 'report' | 'registration' | 'help' | 'unknown' | 'unit_config' | 'unit_view' | 'unit_stock' | 'unit_price_purchase' | 'unit_price_selling' | 'unit_alert' | 'unit_history' | 'unit_price_view' | 'product_delete' | 'confirm_delete' | 'cart_create' | 'cart_add' | 'cart_remove' | 'cart_view' | 'cart_finalize' | 'cart_cancel' | 'transaction_list';
+  type: 'sale' | 'expense' | 'stock' | 'stock_query' | 'product_list' | 'price_set' | 'product_add' | 'balance' | 'report' | 'registration' | 'help' | 'unknown' | 'unit_config' | 'unit_view' | 'unit_stock' | 'unit_price_purchase' | 'unit_price_selling' | 'unit_alert' | 'unit_history' | 'unit_price_view' | 'product_delete' | 'confirm_delete' | 'cart_create' | 'cart_add' | 'cart_remove' | 'cart_view' | 'cart_finalize' | 'cart_cancel' | 'transaction_list';
   amount?: number;
   quantity?: number; // For sales by quantity (e.g., "vente 10 pain")
   product?: string;
@@ -33,6 +33,7 @@ export interface LanguagePatterns {
   stockQuery: RegExp[];
   productList: RegExp[];
   priceSet: RegExp[];
+  productAdd: RegExp[];
   balance: RegExp[];
   report: RegExp[];
   help: RegExp[];
@@ -107,6 +108,18 @@ export class CommandParserService {
     ],
     priceSet: [
       /^(?:prix|price)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
+    ],
+    productAdd: [
+      // Format: ajout produit 'nom_produit'
+      /^(?:ajout|ajouter|add|create)\s+produit\s+['"]?([^'"]+)['"]?$/i,
+      // Format: ajout produit 'nom_produit' prix
+      /^(?:ajout|ajouter|add|create)\s+produit\s+['"]?([^'"]+)['"]?\s+(?:prix|price|à)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
+      // Format: ajout produit 'nom_produit' 500
+      /^(?:ajout|ajouter|add|create)\s+produit\s+['"]?([^'"]+)['"]?\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
+      // Format: nouveau produit 'nom_produit'
+      /^(?:nouveau|nouvelle|new)\s+produit\s+['"]?([^'"]+)['"]?$/i,
+      // Format: créer produit 'nom_produit'
+      /^(?:créer|creer|create)\s+produit\s+['"]?([^'"]+)['"]?$/i,
     ],
     balance: [
       /^(?:bilan|balance|résumé|resume)\s+(jour|day|aujourd'hui|today)$/i,
@@ -330,6 +343,9 @@ export class CommandParserService {
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
     result = this.tryParseProductList(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseProductAdd(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
     result = this.tryParsePriceSet(cleanText, patterns);
@@ -835,6 +851,28 @@ export class CommandParserService {
         return {
           type: 'product_list',
           confidence: 0.9,
+        };
+      }
+    }
+
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  /**
+   * Try to parse as product add command
+   */
+  private tryParseProductAdd(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.productAdd) {
+      const match = text.match(pattern);
+      if (match) {
+        const product = match[1]?.trim();
+        const price = match[2] ? this.parseAmount(match[2]) : undefined;
+
+        return {
+          type: 'product_add',
+          product,
+          unitPrice: price,
+          confidence: product ? (price ? 0.95 : 0.9) : 0.7,
         };
       }
     }

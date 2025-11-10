@@ -10,7 +10,7 @@ export interface ConversationState {
 }
 
 export interface RegistrationState {
-  step: 'type_selection' | 'phone_verification' | 'business_info' | 'owner_name' | 'employee_info' | 'role_selection' | 'merchant_onboarding_start' | 'merchant_conflict_resolution' | 'merchant_business_name' | 'merchant_owner_name' | 'merchant_confirmation';
+  step: 'type_selection' | 'phone_verification' | 'business_info' | 'owner_name' | 'employee_info' | 'role_selection' | 'merchant_onboarding_start' | 'merchant_conflict_resolution' | 'merchant_business_name' | 'merchant_owner_name' | 'merchant_confirmation' | 'product_setup';
   type?: 'owner' | 'employee' | 'merchant';
   phoneNumber?: string;
   businessCode?: string;
@@ -21,6 +21,7 @@ export interface RegistrationState {
   extractedPhoneNumber?: string;
   role?: 'owner' | 'seller' | 'manager';
   conflictType?: 'owner_exists' | 'employee_exists';
+  products?: Array<{ name: string; price: number }>;
   data?: Record<string, any>;
 }
 

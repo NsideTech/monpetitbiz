@@ -5,6 +5,7 @@ import { UserRole } from '../../auth/entities/user.entity';
 import { NLPService } from './nlp.service';
 import { ConflictResolutionService } from './conflict-resolution.service';
 import { OnboardingMessagesService, BusinessDetails, ErrorContext } from './onboarding-messages.service';
+import { StockService } from '../../stock/stock.service';
 
 export interface RegistrationResponse {
   message: string;
@@ -31,6 +32,7 @@ export class RegistrationHandlerService {
     private readonly nlpService: NLPService,
     private readonly conflictResolutionService: ConflictResolutionService,
     private readonly onboardingMessagesService: OnboardingMessagesService,
+    private readonly stockService: StockService,
   ) { }
 
   /**
@@ -155,6 +157,9 @@ export class RegistrationHandlerService {
 
       case 'merchant_confirmation':
         return await this.handleMerchantConfirmation(phoneNumber, message, state);
+
+      case 'product_setup':
+        return await this.handleProductSetup(phoneNumber, message, state);
 
       default:
         this.logger.warn(`Unknown registration step: ${state.step}`);
@@ -557,30 +562,38 @@ export class RegistrationHandlerService {
         language: 'fr'
       });
 
-      // Clear registration state
-      this.conversationStateService.clearState(phoneNumber);
-
-      this.logger.debug(`Merchant onboarding completed for ${phoneNumber}`);
-
-      // Get business code from the created business
+      // Get business code and business ID from the created business
       const businessCode = registrationResult.user.business?.businessCode;
+      const businessId = registrationResult.user.businessId;
 
-      const businessDetails: BusinessDetails = {
-        businessName,
-        ownerName,
-        businessCode,
-        phoneNumber,
-        country: registrationResult.user.business?.country
-      };
-
-      return {
-        message: this.onboardingMessagesService.getSuccessConfirmationMessage(businessDetails),
-        completed: true,
-        nextStep: 'completed',
+      // Update registration state to product_setup step
+      this.conversationStateService.setRegistrationState(phoneNumber, {
+        step: 'product_setup',
+        type: 'merchant',
+        phoneNumber: phoneNumber,
+        businessName: businessName,
+        ownerName: ownerName,
+        businessCode: businessCode,
+        products: [],
         data: {
           user: registrationResult.user,
           accessToken: registrationResult.accessToken,
-          businessCode: businessCode
+          businessCode: businessCode,
+          businessId: businessId
+        }
+      });
+
+      this.logger.debug(`Merchant registration completed for ${phoneNumber}, starting product setup`);
+
+      return {
+        message: this.onboardingMessagesService.getProductSetupStartMessage(businessName, businessCode),
+        completed: false,
+        nextStep: 'product_setup',
+        data: {
+          user: registrationResult.user,
+          accessToken: registrationResult.accessToken,
+          businessCode: businessCode,
+          businessId: businessId
         }
       };
 
@@ -608,6 +621,145 @@ export class RegistrationHandlerService {
         nextStep: 'error'
       };
     }
+  }
+
+  /**
+   * Handle product setup step after merchant registration
+   */
+  async handleProductSetup(
+    phoneNumber: string,
+    message: string,
+    state: RegistrationState
+  ): Promise<RegistrationResponse> {
+    this.logger.debug(`Handling product setup for ${phoneNumber}: "${message}"`);
+
+    const normalizedMessage = message.toLowerCase().trim();
+    const businessId = state.data?.businessId || state.data?.user?.businessId;
+
+    // Check for completion command
+    if (normalizedMessage === 'terminer' || normalizedMessage === 'fin' || normalizedMessage === 'fini' || normalizedMessage === 'terminé') {
+      return await this.completeProductSetup(phoneNumber, state);
+    }
+
+    // Check for skip command
+    if (normalizedMessage === 'passer' || normalizedMessage === 'skip' || normalizedMessage === 'ignorer') {
+      return await this.completeProductSetup(phoneNumber, state, true);
+    }
+
+    // Check for help
+    if (normalizedMessage === 'aide' || normalizedMessage === 'help') {
+      return {
+        message: this.onboardingMessagesService.getProductSetupHelpMessage(),
+        completed: false,
+        nextStep: 'product_setup'
+      };
+    }
+
+    // Parse product and price from message
+    // Format: "nom_produit prix" or "nom_produit: prix" or "nom_produit - prix"
+    const productPriceMatch = message.match(/^(.+?)\s*(?:[:|-]|à)\s*(\d+(?:[.,]\d+)?)\s*(?:f|fcfa|xof)?$/i);
+    
+    if (!productPriceMatch) {
+      return {
+        message: this.onboardingMessagesService.getProductSetupErrorMessage(),
+        completed: false,
+        nextStep: 'product_setup'
+      };
+    }
+
+    const productName = productPriceMatch[1].trim();
+    const priceStr = productPriceMatch[2].replace(',', '.');
+    const price = parseFloat(priceStr);
+
+    if (isNaN(price) || price <= 0) {
+      return {
+        message: this.onboardingMessagesService.getProductSetupErrorMessage(),
+        completed: false,
+        nextStep: 'product_setup'
+      };
+    }
+
+    if (!businessId) {
+      this.logger.error(`Business ID not found for ${phoneNumber} during product setup`);
+      return {
+        message: this.onboardingMessagesService.getErrorMessage({
+          errorType: 'technical',
+          details: 'Erreur lors de la configuration des produits'
+        }),
+        completed: false,
+        nextStep: 'product_setup'
+      };
+    }
+
+    try {
+      // Create product with price using StockService
+      await this.stockService.setUnitPrice(businessId, productName, price);
+
+      // Update state with new product
+      const currentProducts = state.products || [];
+      currentProducts.push({ name: productName, price: price });
+
+      this.conversationStateService.setRegistrationState(phoneNumber, {
+        ...state,
+        products: currentProducts
+      });
+
+      this.logger.debug(`Product "${productName}" with price ${price} added for business ${businessId}`);
+
+      return {
+        message: this.onboardingMessagesService.getProductAddedMessage(productName, price, currentProducts.length),
+        completed: false,
+        nextStep: 'product_setup'
+      };
+    } catch (error) {
+      this.logger.error(`Error adding product for ${phoneNumber}:`, error);
+      return {
+        message: this.onboardingMessagesService.getErrorMessage({
+          errorType: 'technical',
+          details: `Erreur lors de l'ajout du produit "${productName}"`
+        }),
+        completed: false,
+        nextStep: 'product_setup'
+      };
+    }
+  }
+
+  /**
+   * Complete product setup and finish onboarding
+   */
+  async completeProductSetup(
+    phoneNumber: string,
+    state: RegistrationState,
+    skipped: boolean = false
+  ): Promise<RegistrationResponse> {
+    const businessName = state.businessName || '';
+    const ownerName = state.ownerName || '';
+    const businessCode = state.businessCode || '';
+    const products = state.products || [];
+
+    // Clear registration state
+    this.conversationStateService.clearState(phoneNumber);
+
+    this.logger.debug(`Product setup ${skipped ? 'skipped' : 'completed'} for ${phoneNumber}, onboarding finished`);
+
+    const businessDetails: BusinessDetails = {
+      businessName,
+      ownerName,
+      businessCode,
+      phoneNumber,
+      country: state.country
+    };
+
+    return {
+      message: this.onboardingMessagesService.getSuccessConfirmationMessage(businessDetails, products, skipped),
+      completed: true,
+      nextStep: 'completed',
+      data: {
+        businessCode: businessCode,
+        productsAdded: products.length,
+        skipped: skipped
+      }
+    };
   }
 
   /**

@@ -847,7 +847,7 @@ export class BotController {
         `💡 Exemple: prix ${productName} 500\n\n` +
         `Ou utilisez: ajout produit '${productName}' [montant]`;
 
-      await this.sendMessage(phoneNumber, response);
+      await this.sendSuccessMessage(phoneNumber, response);
 
       return {
         success: true,

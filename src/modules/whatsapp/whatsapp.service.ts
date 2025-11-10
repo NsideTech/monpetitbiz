@@ -112,19 +112,20 @@ export class WhatsappService {
             continue;
           }
 
-          // For Vercel serverless, we need to process critical messages synchronously
-          // to ensure they complete before the function terminates
-          // Critical messages include registration/onboarding commands
+          // For Vercel serverless, process ALL messages synchronously to ensure completion
+          // Vercel functions can terminate before async processing completes
+          const isVercel = process.env.VERCEL === '1';
           const isCriticalMessage = this.isCriticalMessage(message);
           
-          if (isCriticalMessage) {
-            this.logger.log(`Processing critical message ${message.messageId} synchronously for Vercel compatibility`);
-            // Process synchronously to ensure completion on Vercel
+          if (isVercel || isCriticalMessage) {
+            // On Vercel or for critical messages: process synchronously
+            const reason = isVercel ? 'Vercel compatibility' : 'critical message';
+            this.logger.log(`Processing message ${message.messageId} synchronously for ${reason}`);
             await this.processMessageSynchronously(message);
             messagesProcessed++;
-            this.logger.log(`Successfully processed critical message ${message.messageId}`);
+            this.logger.log(`Successfully processed message ${message.messageId} synchronously`);
           } else {
-            // Add to processing queue for non-critical messages
+            // For non-Vercel environments: use async queue
             this.logger.debug(`Enqueueing message ${message.messageId} to message queue...`);
             await this.messageQueue.enqueue(message);
             messagesProcessed++;

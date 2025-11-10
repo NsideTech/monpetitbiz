@@ -7,6 +7,7 @@ import { Transaction } from '../modules/transaction/entities/transaction.entity'
 import { StockItem } from '../modules/stock/entities/stock-item.entity';
 import { ProductUnit } from '../modules/stock/entities/product-unit.entity';
 import { StockMovement } from '../modules/stock/entities/stock-movement.entity';
+import { ChatMessage } from '../modules/chat/entities/chat-message.entity';
 
 // Load environment variables
 config();
@@ -48,7 +49,7 @@ const configObj: any = {
     password: process.env.DATABASE_PASSWORD || process.env.DB_PASSWORD || 'password',
     database: process.env.DATABASE_NAME || process.env.DB_NAME || 'monpetitbiz',
   }),
-  entities: [Business, User, OtpSession, Transaction, StockItem, ProductUnit, StockMovement],
+  entities: [Business, User, OtpSession, Transaction, StockItem, ProductUnit, StockMovement, ChatMessage],
   migrations: [
     __dirname + '/../database/migrations/*{.ts,.js}',
     __dirname + '/../migrations/*{.ts,.js}'

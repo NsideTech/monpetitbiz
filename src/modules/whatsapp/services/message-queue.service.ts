@@ -19,6 +19,7 @@ export class MessageQueueService {
   private readonly maxRetries = 3;
   private readonly retryDelay = 1000; // 1 second
   private isProcessing = false;
+  private processingStarted = false; // Track if processing has started
   private botController: IBotController | null = null;
 
   /**
@@ -35,14 +36,37 @@ export class MessageQueueService {
     this.logger.log(`Message ${message.messageId} added to queue. Queue size: ${this.messageQueue.length}`);
 
     // Start processing if not already running
-    // Note: We don't await this to avoid blocking the webhook response
-    // The processing will continue asynchronously after the webhook responds
-    if (!this.isProcessing) {
-      // Fire and forget, but ensure it starts
-      this.processQueue().catch(error => {
-        this.logger.error('Error in processQueue:', error);
-        this.isProcessing = false; // Reset flag on error so it can be retried
+    // On Vercel, we need to ensure processing starts before the function can terminate
+    if (!this.isProcessing && !this.processingStarted) {
+      this.processingStarted = true;
+      
+      // Use setImmediate to ensure processQueue starts even on Vercel
+      // This guarantees the async task is scheduled before the function can terminate
+      setImmediate(() => {
+        this.logger.log(`[enqueue] Scheduling processQueue() for ${this.messageQueue.length} messages via setImmediate`);
+        this.processQueue().catch(error => {
+          this.logger.error('[enqueue] Error in processQueue:', error);
+          this.logger.error(`[enqueue] Error stack: ${error.stack}`);
+          this.isProcessing = false;
+          this.processingStarted = false; // Reset flag on error so it can be retried
+        });
       });
+      
+      // Also try process.nextTick as a backup
+      process.nextTick(() => {
+        if (!this.isProcessing && this.messageQueue.length > 0) {
+          this.logger.log(`[enqueue] Backup: Starting processQueue() via process.nextTick`);
+          this.processQueue().catch(error => {
+            this.logger.error('[enqueue] Backup processQueue error:', error);
+            this.isProcessing = false;
+            this.processingStarted = false;
+          });
+        }
+      });
+      
+      this.logger.log(`[enqueue] processQueue() scheduled (setImmediate + process.nextTick)`);
+    } else {
+      this.logger.debug(`[enqueue] Queue processing already ${this.isProcessing ? 'running' : 'started'}, skipping`);
     }
   }
 
@@ -50,31 +74,55 @@ export class MessageQueueService {
    * Process messages in the queue
    */
   private async processQueue(): Promise<void> {
-    if (this.isProcessing || this.messageQueue.length === 0) {
-      this.logger.debug(`Skipping queue processing: isProcessing=${this.isProcessing}, queueLength=${this.messageQueue.length}`);
+    this.logger.log(`[processQueue] Called - isProcessing: ${this.isProcessing}, queueLength: ${this.messageQueue.length}`);
+    
+    if (this.isProcessing) {
+      this.logger.debug(`[processQueue] Already processing, skipping`);
+      return;
+    }
+    
+    if (this.messageQueue.length === 0) {
+      this.logger.debug(`[processQueue] Queue is empty, skipping`);
       return;
     }
 
     this.isProcessing = true;
-    this.logger.log(`Starting message queue processing: ${this.messageQueue.length} messages in queue`);
+    this.logger.log(`[processQueue] Starting message queue processing: ${this.messageQueue.length} messages in queue`);
 
     while (this.messageQueue.length > 0) {
       const message = this.messageQueue.shift();
-      if (!message) continue;
+      if (!message) {
+        this.logger.warn(`[processQueue] Shifted null/undefined message from queue`);
+        continue;
+      }
 
       try {
-        this.logger.debug(`Processing message ${message.messageId} from ${message.from}: "${message.body}"`);
+        this.logger.log(`[processQueue] Processing message ${message.messageId} from ${message.from}: "${message.body}"`);
         await this.processMessage(message);
-        this.logger.log(`Successfully processed message ${message.messageId}`);
+        this.logger.log(`[processQueue] Successfully processed message ${message.messageId}`);
       } catch (error) {
-        this.logger.error(`Failed to process message ${message.messageId}:`, error);
-        this.logger.error(`Error details: ${error.message}`, error.stack);
+        this.logger.error(`[processQueue] Failed to process message ${message.messageId}:`, error);
+        this.logger.error(`[processQueue] Error details: ${error.message}`, error.stack);
         await this.handleFailedMessage(message, error);
       }
     }
 
     this.isProcessing = false;
-    this.logger.log(`Message queue processing completed. Remaining queue: ${this.messageQueue.length}`);
+    this.processingStarted = false; // Reset flag when done
+    this.logger.log(`[processQueue] Message queue processing completed. Remaining queue: ${this.messageQueue.length}`);
+    
+    // If there are still messages in queue, restart processing
+    if (this.messageQueue.length > 0) {
+      this.logger.log(`[processQueue] Restarting processing for ${this.messageQueue.length} remaining messages`);
+      this.processingStarted = true;
+      setImmediate(() => {
+        this.processQueue().catch(error => {
+          this.logger.error('[processQueue] Error in restart:', error);
+          this.isProcessing = false;
+          this.processingStarted = false;
+        });
+      });
+    }
   }
 
   /**
@@ -117,27 +165,32 @@ export class MessageQueueService {
    * Process message using bot controller
    */
   private async simulateProcessing(message: QueuedMessage): Promise<void> {
-    this.logger.debug(`Processing message from ${message.from}: "${message.body}"`);
+    this.logger.log(`[simulateProcessing] Processing message ${message.messageId} from ${message.from}: "${message.body}"`);
     
     if (this.botController) {
       try {
         // Use the bot controller to process the message
-        this.logger.debug(`Calling botController.processMessage for message ${message.messageId}`);
+        this.logger.log(`[simulateProcessing] Calling botController.processMessage for message ${message.messageId}`);
         const result = await this.botController.processMessage(message);
-        this.logger.debug(`Bot controller processed message ${message.messageId}:`, {
+        this.logger.log(`[simulateProcessing] Bot controller processed message ${message.messageId}:`, {
           success: result.success,
-          messageLength: result.message?.length || 0
+          messageLength: result.message?.length || 0,
+          hasMessage: !!result.message
         });
+        
+        if (result.message) {
+          this.logger.debug(`[simulateProcessing] Response message preview: ${result.message.substring(0, 100)}...`);
+        }
       } catch (error) {
-        this.logger.error(`Bot controller error processing message ${message.messageId}:`, error);
-        this.logger.error(`Error stack: ${error.stack}`);
+        this.logger.error(`[simulateProcessing] Bot controller error processing message ${message.messageId}:`, error);
+        this.logger.error(`[simulateProcessing] Error stack: ${error.stack}`);
         throw error;
       }
     } else {
       // Fallback: just log the message
-      this.logger.warn('No bot controller set, message processing skipped');
-      this.logger.warn(`Message ${message.messageId} from ${message.from} will not be processed`);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      this.logger.error('[simulateProcessing] No bot controller set, message processing skipped');
+      this.logger.error(`[simulateProcessing] Message ${message.messageId} from ${message.from} will not be processed`);
+      throw new Error('Bot controller not set');
     }
   }
 

@@ -16,6 +16,7 @@ import { TransactionModule } from './modules/transaction/transaction.module';
 import { StockModule } from './modules/stock/stock.module';
 import { ReportModule } from './modules/report/report.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     StockModule,
     ReportModule,
     DashboardModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [

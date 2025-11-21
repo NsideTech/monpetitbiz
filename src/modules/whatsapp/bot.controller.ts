@@ -295,8 +295,10 @@ export class BotController {
     userContext: UserContext
   ): Promise<BotResponse> {
     try {
-      // Handle quantity-based sales (e.g., "vente 10 pain")
-      if (command.quantity && command.product && !command.amount) {
+      // Handle quantity-based sales (e.g., "vente 10 pain" or "vente 10 pain 2000")
+      // If quantity and product are specified, use handleQuantitySale
+      // This handles both cases: with and without explicit amount
+      if (command.quantity && command.product) {
         return await this.handleQuantitySale(phoneNumber, command, userContext);
       }
 
@@ -441,6 +443,10 @@ export class BotController {
           await this.sendErrorMessage(phoneNumber, response);
           return { success: false, message: response };
         }
+      } else {
+        // Amount is explicitly provided (e.g., "vente 10 pain 2000")
+        // Use the provided amount directly without recalculating from unit price
+        this.logger.log(`[BotController] Using provided amount: ${command.amount} for ${command.quantity} ${command.product}`);
       }
 
       // Process the sale with both quantity and amount
@@ -497,6 +503,7 @@ export class BotController {
         command.product
       );
       const wasAutoCalculated = storedUnitPrice && Math.abs(storedUnitPrice - unitPrice) < 1;
+      const wasExplicitAmount = command.amount && command.amount > 0 && !wasAutoCalculated;
 
       // Send confirmation
       let response = `✅ Vente enregistrée:\n`;
@@ -505,6 +512,9 @@ export class BotController {
       if (wasAutoCalculated) {
         response += ` ✨\n`;
         response += `💵 Prix unitaire: ${this.formatCurrency(unitPrice)} (calculé automatiquement)`;
+      } else if (wasExplicitAmount) {
+        response += `\n`;
+        response += `💵 Prix unitaire effectif: ${this.formatCurrency(unitPrice)} (prix spécial)`;
       } else {
         response += `\n`;
         response += `💵 Prix unitaire: ${this.formatCurrency(unitPrice)}`;

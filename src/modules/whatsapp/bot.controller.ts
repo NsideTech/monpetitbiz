@@ -401,15 +401,18 @@ export class BotController {
       this.logger.log(`[BotController] Processing quantity sale: ${command.quantity} ${command.product}, amount: ${command.amount || 'not specified'}`);
 
       // Check if we have enough stock
+      this.logger.log(`[BotController] Checking stock for product: "${command.product}", quantity: ${command.quantity}`);
       const currentStock = await this.stockService.getStockLevel(
         userContext.businessId!,
         command.product
       );
+      this.logger.log(`[BotController] Current stock for "${command.product}": ${currentStock}`);
 
       if (currentStock < command.quantity) {
         const response = `❌ Stock insuffisant pour ${command.product}.\n` +
           `Stock disponible: ${currentStock} unités\n` +
           `Quantité demandée: ${command.quantity} unités`;
+        this.logger.warn(`[BotController] Insufficient stock: requested ${command.quantity}, available ${currentStock}`);
         await this.sendErrorMessage(phoneNumber, response);
         return { success: false, message: response };
       }
@@ -723,6 +726,43 @@ export class BotController {
     userContext: UserContext
   ): Promise<BotResponse> {
     try {
+      // Check if user provided an amount (e.g., "produit b9000 20000")
+      // This suggests they might want to set a price instead
+      if (command.suggestedPrice) {
+        const suggestion = `💡 Vous avez fourni un montant (${this.formatCurrency(command.suggestedPrice)}).\n` +
+          `Pour définir un prix, utilisez:\n` +
+          `prix ${command.product} ${command.suggestedPrice}\n\n` +
+          `Sinon, voici le stock actuel:\n`;
+        
+        // Continue to show stock, but with the suggestion first
+        const stockItems = await this.stockService.getStock(
+          userContext.businessId!,
+          command.product
+        );
+
+        if (stockItems.length > 0) {
+          const item = stockItems[0];
+          let response = suggestion + `📦 Stock ${item.product}: ${item.quantity} unités`;
+
+          if (item.quantity === 0) {
+            response += ' ⚠️ (Rupture de stock)';
+          } else if (item.quantity <= 5) {
+            response += ' ⚠️ (Stock faible)';
+          }
+
+          if (item.unitPrice) {
+            response += `\n💰 Prix actuel: ${this.formatCurrency(item.unitPrice)}/unité`;
+          }
+
+          await this.sendSuccessMessage(phoneNumber, response);
+          return {
+            success: true,
+            message: response,
+            data: { stockItems }
+          };
+        }
+      }
+
       const stockItems = await this.stockService.getStock(
         userContext.businessId!,
         command.product

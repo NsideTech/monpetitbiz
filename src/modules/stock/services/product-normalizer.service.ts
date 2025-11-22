@@ -153,23 +153,37 @@ export class ProductNormalizerService {
      * Trouve le meilleur match parmi une liste de produits existants
      */
     findBestMatch(searchProduct: string, existingProducts: string[]): string | null {
-        const searchVariants = this.getProductVariants(searchProduct);
-
-        // Chercher une correspondance exacte d'abord
-        for (const variant of searchVariants) {
-            if (existingProducts.includes(variant)) {
-                return variant;
+        const searchNormalized = this.normalize(searchProduct);
+        
+        // 1. Chercher d'abord une correspondance exacte normalisée (cas le plus courant)
+        for (const existing of existingProducts) {
+            const existingNormalized = this.normalize(existing);
+            if (searchNormalized === existingNormalized) {
+                return existing; // Retourner le nom original tel qu'il est stocké
             }
         }
 
-        // Chercher une correspondance partielle (pour les mots composés)
-        const searchNormalized = this.normalize(searchProduct);
+        // 2. Chercher parmi les variantes (singulier/pluriel)
+        const searchVariants = this.getProductVariants(searchProduct);
+        for (const variant of searchVariants) {
+            for (const existing of existingProducts) {
+                const existingNormalized = this.normalize(existing);
+                if (this.normalize(variant) === existingNormalized) {
+                    return existing; // Retourner le nom original tel qu'il est stocké
+                }
+            }
+        }
+
+        // 3. Chercher une correspondance partielle (pour les mots composés)
         for (const existing of existingProducts) {
             const existingNormalized = this.normalize(existing);
 
             // Vérifier si l'un contient l'autre (pour les mots composés)
-            if (searchNormalized.includes(existingNormalized) || existingNormalized.includes(searchNormalized)) {
-                return existing;
+            // Mais seulement si les deux ont une longueur raisonnable pour éviter les faux positifs
+            if (searchNormalized.length > 3 && existingNormalized.length > 3) {
+                if (searchNormalized.includes(existingNormalized) || existingNormalized.includes(searchNormalized)) {
+                    return existing;
+                }
             }
         }
 

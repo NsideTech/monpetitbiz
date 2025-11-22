@@ -102,6 +102,8 @@ export class CommandParserService {
       /^(?:stock|voir stock|check stock)\s+(.+)$/i,
       /^(?:stock|voir stock|check stock)$/i,
       /^(.+?)\s+stock\s*\?*$/i,
+      // Format: produit [nom] - query stock for a specific product
+      /^produit\s+(.+)$/i,
     ],
     productList: [
       /^(?:produits|liste produits|voir produits|list products)$/i,
@@ -303,6 +305,10 @@ export class CommandParserService {
     result = this.tryParseUnitPriceView(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
+    // Try stock query BEFORE sale to avoid false positives (e.g., "produit b9000" should be stock query, not sale)
+    result = this.tryParseStockQuery(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
     // Try basic commands
     result = this.tryParseSale(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
@@ -311,9 +317,6 @@ export class CommandParserService {
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
     result = this.tryParseStock(cleanText, patterns);
-    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
-
-    result = this.tryParseStockQuery(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
     result = this.tryParseProductDelete(cleanText, patterns);
@@ -446,6 +449,11 @@ export class CommandParserService {
    * Try to parse as sale command
    */
   private tryParseSale(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    // Skip if text starts with "produit" - this should be handled by stockQuery
+    if (/^produit\s+/i.test(text)) {
+      return { type: 'unknown', confidence: 0 };
+    }
+
     for (const pattern of patterns.sale) {
       const match = text.match(pattern);
       if (match) {
@@ -677,6 +685,27 @@ export class CommandParserService {
    * Try to parse as stock query command
    */
   private tryParseStockQuery(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    // Check for "produit [nom]" pattern first (high confidence)
+    // Pattern: "produit [nom]" or "produit [nom] [montant]" (montant will be ignored but detected)
+    const produitPattern = /^produit\s+(.+?)(?:\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?)?$/i;
+    const produitMatch = text.match(produitPattern);
+    if (produitMatch) {
+      const product = produitMatch[1]?.trim();
+      const amount = produitMatch[2] ? this.parseAmount(produitMatch[2]) : undefined;
+      
+      // If amount is present, this might be intended as price setting
+      // But we'll still treat it as stock query and let the handler suggest using "prix" command
+      return {
+        type: 'stock_query',
+        stockAction: 'query',
+        product: product || undefined,
+        // Store amount if present so handler can suggest price command
+        suggestedPrice: amount,
+        confidence: 0.95, // High confidence for explicit "produit" command
+      };
+    }
+
+    // Check other stock query patterns
     for (const pattern of patterns.stockQuery) {
       const match = text.match(pattern);
       if (match) {

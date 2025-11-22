@@ -370,6 +370,7 @@ export class StockService {
     }
 
     const normalizedProduct = this.productNormalizer.normalize(product);
+    console.log(`[StockService] getStockLevel: searching for "${normalizedProduct}" in business ${businessId}`);
     
     // Get all existing products for this business
     const existingStockItems = await this.stockItemRepository.find({
@@ -377,15 +378,29 @@ export class StockService {
     });
     
     const existingProductNames = existingStockItems.map(item => item.product);
+    console.log(`[StockService] getStockLevel: found ${existingProductNames.length} products: ${existingProductNames.join(', ')}`);
+    
+    // First try exact match (case-insensitive)
+    const exactMatch = existingProductNames.find(name => 
+      this.productNormalizer.normalize(name) === normalizedProduct
+    );
+    
+    if (exactMatch) {
+      console.log(`[StockService] getStockLevel: exact match found: "${exactMatch}"`);
+      const stockItem = existingStockItems.find(item => item.product === exactMatch);
+      return stockItem ? stockItem.quantity : 0;
+    }
     
     // Find the best matching product using the normalizer
     const matchingProductName = this.productNormalizer.findBestMatch(normalizedProduct, existingProductNames);
     
     if (matchingProductName) {
+      console.log(`[StockService] getStockLevel: best match found: "${matchingProductName}"`);
       const stockItem = existingStockItems.find(item => item.product === matchingProductName);
       return stockItem ? stockItem.quantity : 0;
     }
 
+    console.log(`[StockService] getStockLevel: no match found for "${normalizedProduct}"`);
     return 0;
   }
 

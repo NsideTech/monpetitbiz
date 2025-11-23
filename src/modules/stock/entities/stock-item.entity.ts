@@ -3,7 +3,9 @@ import { Business } from '../../auth/entities/business.entity';
 
 @Entity('stock_items')
 @Unique(['businessId', 'product'])
+@Unique(['businessId', 'productCode'])
 @Index(['businessId'])
+@Index(['businessId', 'productCode'])
 export class StockItem {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -13,6 +15,15 @@ export class StockItem {
 
   @Column({ type: 'varchar', length: 255, nullable: false })
   product: string;
+
+  @Column({ 
+    name: 'product_code', 
+    type: 'varchar', 
+    length: 50, 
+    nullable: true,
+    unique: false
+  })
+  productCode: string;
 
   @Column({ type: 'integer', default: 0 })
   quantity: number;

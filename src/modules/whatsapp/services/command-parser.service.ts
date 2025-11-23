@@ -69,11 +69,21 @@ export class CommandParserService {
       // Format: vente 1000 (montant seul)
       /^(?:vente|vendu|j'ai vendu|sale)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s*$/i,
 
+      // Format with quotes: vente 10 'ciment blanc 50kg' 500
+      /^(?:vente|vendu|j'ai vendu|sale)\s+(\d+)\s+['"]([^'"]+)['"]\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
+
+      // Format with quotes: vente 10 'ciment blanc 50kg'
+      /^(?:vente|vendu|j'ai vendu|sale)\s+(\d+)\s+['"]([^'"]+)['"]$/i,
+
+      // Format: vente 10 pain 500 (quantité + produit + montant)
+      // Captures everything between first and last number as product name
+      /^(?:vente|vendu|j'ai vendu|sale)\s+(\d+)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
+
       // Format: vente 10 pain (quantité + produit)
       /^(?:vente|vendu|j'ai vendu|sale)\s+(\d+)\s+(.+?)$/i,
 
-      // Format: vente 10 pain 500 (quantité + produit + montant)
-      /^(?:vente|vendu|j'ai vendu|sale)\s+(\d+)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
+      // Format with quotes: vente 'ciment blanc 50kg' 500
+      /^(?:vente|sale)\s+['"]([^'"]+)['"]\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
 
       // Format: vente pain 500 (produit + montant avec CFA explicite)
       /^(?:vente|sale)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)$/i,
@@ -94,9 +104,15 @@ export class CommandParserService {
       /^(?:dépense|depense|expense)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
     ],
     stock: [
-      /^(?:stock|maj stock|update stock)\s+(.+?)\s+(\d+)$/i,
-      /^(?:stock|maj stock|update stock)\s+(\d+)\s+(.+)$/i,
-      /^(.+?)\s+stock\s+(\d+)$/i,
+      // Support quoted product names: stock 'ciment blanc 50kg' 100
+      /^(?:stock|maj stock|update stock)\s+['"]([^'"]+)['"]\s+(\d+(?:[.,]\d+)?)$/i,
+      // Format: stock [produit] [quantité] - greedy match to capture full product name
+      // Uses lookahead to ensure we capture everything except the last number
+      /^(?:stock|maj stock|update stock)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*$/i,
+      /^(?:stock|maj stock|update stock)\s+(\d+(?:[.,]\d+)?)\s+(.+)$/i,
+      // Support quoted names in reverse format
+      /^['"]([^'"]+)['"]?\s+stock\s+(\d+(?:[.,]\d+)?)$/i,
+      /^(.+?)\s+stock\s+(\d+(?:[.,]\d+)?)$/i,
     ],
     stockQuery: [
       /^(?:stock|voir stock|check stock)\s+(.+)$/i,
@@ -109,6 +125,9 @@ export class CommandParserService {
       /^(?:produits|liste produits|voir produits|list products)$/i,
     ],
     priceSet: [
+      // Support quoted product names: prix 'ciment blanc 50kg' 5000
+      /^(?:prix|price)\s+['"]([^'"]+)['"]\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
+      // Format: prix [produit] [montant] - capture everything except the last number
       /^(?:prix|price)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
     ],
     productAdd: [
@@ -1377,6 +1396,8 @@ export class CommandParserService {
       `• "stock pain" - pour voir le stock d'un produit\n` +
       `• "produit unité bière achat caisse 24 bouteille" - configurer les unités\n` +
       `• "bilan jour" - pour le bilan du jour\n\n` +
+      `💡 **Noms composés** : Utilisez des guillemets pour les produits avec plusieurs mots ou chiffres\n` +
+      `   Exemple : stock 'ciment blanc 50kg' 100\n\n` +
       `💡 Tapez "aide" pour une aide complète ou "aide unités" pour les unités multiples.`;
   }
 

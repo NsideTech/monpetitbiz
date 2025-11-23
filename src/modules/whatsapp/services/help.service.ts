@@ -126,10 +126,25 @@ export class HelpService {
     message += `• "stock pain" - Voir stock et prix\n\n`;
 
     // Stock commands (available to all roles)
-    message += `📦 **STOCK**\n`;
+    message += `📦 **STOCK & PRODUITS**\n`;
+    message += `• "produits" - Voir la liste de tous les produits\n`;
+    message += `• "ajout produit pain 400" - Ajouter un nouveau produit\n`;
     message += `• "stock pain 10" - Mettre le stock de pain à 10\n`;
     message += `• "stock pain" - Voir le stock, prix et valeur\n`;
-    message += `• "stock" - Voir tout le stock avec prix\n\n`;
+    message += `• "produit pain" - Voir les détails d'un produit\n`;
+    
+    // Product deletion (owner and manager only)
+    if (userRole === 'owner' || userRole === 'manager') {
+      message += `• "supprimer produit pain" - Supprimer un produit\n`;
+    }
+    
+    message += `\n`;
+    
+    // Product codes info
+    message += `🏷️ **CODES PRODUITS** (auto-générés)\n`;
+    message += `• Chaque produit reçoit un code unique automatique\n`;
+    message += `• Exemple: "ciment blanc 50kg" → Code: CIM50\n`;
+    message += `• Utilisez le code: "stock CIM50 100" (plus rapide!)\n\n`;
 
     // Units commands (available to all roles)
     message += `📏 **UNITÉS MULTIPLES**\n`;
@@ -160,10 +175,10 @@ export class HelpService {
 
     message += `\n💡 **AIDE SPÉCIALISÉE**\n`;
     message += `• "aide ventes" - Aide sur les ventes\n`;
-    message += `• "aide prix" - Aide sur la gestion des prix\n`;
-    message += `• "aide stock" - Aide sur la gestion du stock\n`;
+    message += `• "aide prix" - Aide sur les prix et ajout de produits\n`;
+    message += `• "aide stock" - Aide sur le stock et gestion des produits\n`;
     message += `• "aide unités" - Aide sur les unités multiples\n`;
-    message += `• "aide rapports" - Aide sur les rapports\n`;
+    message += `• "aide rapports" - Aide sur les bilans et rapports\n`;
     if (userRole === 'owner') {
       message += `• "aide dépenses" - Aide sur les dépenses\n`;
     }
@@ -256,15 +271,30 @@ export class HelpService {
    */
   private getStockHelpMessage(userRole?: string): string {
     let message = `📦 **AIDE - GESTION DU STOCK**\n\n` +
+           `➕ **AJOUTER UN NOUVEAU PRODUIT :**\n\n` +
+           `• "ajout produit pain" - Ajouter le produit "pain" (prix demandé ensuite)\n` +
+           `• "ajout produit pain 400" - Ajouter avec prix de 400 CFA\n` +
+           `• "ajout produit 'ciment blanc 50kg' 5000" - Nom composé avec guillemets\n` +
+           `• "nouveau produit riz" - Autre format\n\n` +
+           
+           `🏷️ **CODES PRODUITS AUTO-GÉNÉRÉS :**\n\n` +
+           `Chaque produit reçoit automatiquement un code unique:\n` +
+           `• "pain" → Code: PAIN\n` +
+           `• "ciment blanc 50kg" → Code: CIM50\n` +
+           `• "Coca Cola 1.5L" → Code: COC15\n` +
+           `💡 Utilisez ensuite le code: "stock CIM50 100" (plus rapide!)\n\n` +
+           
            `📝 **METTRE À JOUR LE STOCK :**\n\n` +
            `• "stock pain 10" - Mettre le stock de pain à 10 unités\n` +
+           `• "stock CIM50 100" - Avec le code produit\n` +
            `• "stock riz 25" - Mettre le stock de riz à 25 unités\n` +
            `• "maj stock café 5" - Mettre à jour le stock de café\n\n` +
            
            `🔍 **CONSULTER LE STOCK :**\n\n` +
-           `• "stock pain" - Voir le stock de pain\n` +
+           `• "produits" - Liste complète avec codes et prix ⭐\n` +
+           `• "stock pain" ou "produit pain" - Voir le stock de pain\n` +
+           `• "produit CIM50" - Consulter avec le code\n` +
            `• "stock" - Voir tout le stock\n` +
-           `• "produits" - Voir la liste complète des produits avec prix\n` +
            `• "voir stock" - Afficher l'inventaire complet\n\n`;
     
     // Add product deletion help only for owners and managers
@@ -298,9 +328,15 @@ export class HelpService {
    */
   private getPriceHelpMessage(userRole?: string): string {
     return `💰 **AIDE - GESTION DES PRIX**\n\n` +
-           `📝 **DÉFINIR LES PRIX (NOUVEAU!):**\n\n` +
+           `➕ **AJOUTER UN PRODUIT AVEC PRIX :**\n\n` +
+           `• "ajout produit pain 400" - Créer + définir prix\n` +
+           `• "ajout produit 'ciment 50kg' 5000" - Nom composé\n` +
+           `💡 Un code unique est généré automatiquement!\n\n` +
+           
+           `📝 **DÉFINIR/MODIFIER LES PRIX :**\n\n` +
            `**Prix simple :**\n` +
            `• "prix pain 300" - Définir le prix unitaire du pain\n` +
+           `• "prix CIM50 5000" - Définir avec le code produit\n` +
            `• "prix eau 100" - Prix de l'eau à 100 CFA\n` +
            `• "prix cigarette 500" - Prix des cigarettes\n\n` +
            
@@ -310,7 +346,9 @@ export class HelpService {
            `• "prix bière" - Voir tous les prix du produit\n\n` +
            
            `🔍 **CONSULTER LES PRIX :**\n\n` +
+           `• "produits" - Liste complète avec codes et prix ⭐\n` +
            `• "stock pain" - Voir le stock ET le prix\n` +
+           `• "produit CIM50" - Consulter avec le code\n` +
            `• "stock" - Voir tous les prix et valeurs\n` +
            `• "prix bière" - Détails des prix (unités multiples)\n\n` +
            

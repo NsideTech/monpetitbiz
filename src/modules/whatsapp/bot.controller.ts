@@ -572,6 +572,12 @@ export class BotController {
 
       products.forEach((item, index) => {
         response += `${index + 1}. **${item.product}**\n`;
+        
+        // Show product code if available
+        if (item.productCode) {
+          response += `   🏷️ Code: ${item.productCode}\n`;
+        }
+        
         response += `   📦 Stock: ${item.quantity} unité${item.quantity > 1 ? 's' : ''}`;
         
         if (item.unitPrice) {
@@ -773,7 +779,14 @@ export class BotController {
       if (command.product) {
         // Single product query
         const item = stockItems[0];
-        response = `📦 Stock ${item.product}: ${item.quantity} unités`;
+        response = `📦 **${item.product}**\n`;
+        
+        // Show product code
+        if (item.productCode) {
+          response += `🏷️ **Code:** ${item.productCode}\n`;
+        }
+        
+        response += `📊 **Stock:** ${item.quantity} unité${item.quantity > 1 ? 's' : ''}`;
 
         if (item.quantity === 0) {
           response += ' ⚠️ (Rupture de stock)';
@@ -783,13 +796,14 @@ export class BotController {
 
         // Add price information if available
         if (item.unitPrice) {
-          response += `\n💰 Prix: ${this.formatCurrency(item.unitPrice)}/unité`;
+          response += `\n💰 **Prix:** ${this.formatCurrency(item.unitPrice)}/unité`;
           if (item.quantity > 0) {
             const totalValue = item.quantity * item.unitPrice;
-            response += `\n💵 Valeur du stock: ${this.formatCurrency(totalValue)}`;
+            response += `\n💵 **Valeur:** ${this.formatCurrency(totalValue)}`;
           }
         } else {
-          response += `\n💡 Prix non défini. Définissez avec: prix ${item.product} [montant]`;
+          const codeOrName = item.productCode || item.product;
+          response += `\n\n💡 Prix non défini. Définissez avec:\nprix ${codeOrName} [montant]`;
         }
       } else {
         // All products query
@@ -836,7 +850,14 @@ export class BotController {
 
       let response: string;
       if (error.message.includes('not found')) {
-        response = `Produit "${command.product}" non trouvé dans le stock.`;
+        response = `❌ Produit "${command.product}" non trouvé dans le stock.\n\n` +
+          `💡 **Pour créer ce produit, utilisez :**\n` +
+          `• "ajout produit ${command.product}"\n` +
+          `• "ajout produit ${command.product} [prix]"\n\n` +
+          `**Exemples :**\n` +
+          `• "ajout produit ${command.product}" (le prix sera demandé)\n` +
+          `• "ajout produit ${command.product} 500" (avec prix)\n\n` +
+          `📝 Ensuite, ajoutez du stock avec : "stock ${command.product} [quantité]"`;
       } else {
         response = 'Erreur lors de la consultation du stock.';
       }
@@ -877,32 +898,44 @@ export class BotController {
           command.unitPrice
         );
 
-        let response = `✅ Produit ajouté : ${stockItem.product}\n`;
-        response += `💰 Prix unitaire: ${this.formatCurrency(command.unitPrice)}\n\n`;
-        response += `💡 Ajoutez du stock avec:\nstock ${stockItem.product} [quantité]`;
+        let response = `✅ **Produit créé avec succès !**\n\n`;
+        response += `📦 **Nom:** ${stockItem.product}\n`;
+        response += `🏷️ **Code:** ${stockItem.productCode}\n`;
+        response += `💰 **Prix:** ${this.formatCurrency(command.unitPrice)}\n\n`;
+        response += `💡 **Commandes rapides:**\n`;
+        response += `• Stock: "stock ${stockItem.productCode} [quantité]"\n`;
+        response += `• Vente: "vente [qté] ${stockItem.productCode}"\n`;
+        response += `• Requête: "produit ${stockItem.productCode}"`;
 
         await this.sendSuccessMessage(phoneNumber, response);
 
         return {
           success: true,
           message: response,
-          data: { stockItem }
+          data: { stockItem, productCode: stockItem.productCode }
         };
       }
 
-      // If no price provided, ask for price
-      const response = `📦 **Ajout de produit : ${productName}**\n\n` +
-        `💰 Veuillez spécifier le prix unitaire :\n\n` +
-        `📝 Format: prix ${productName} [montant]\n` +
-        `💡 Exemple: prix ${productName} 500\n\n` +
-        `Ou utilisez: ajout produit '${productName}' [montant]`;
+      // If no price provided, create product without price (will generate code)
+      const stockItem = await this.stockService.setUnitPrice(
+        userContext.businessId!,
+        productName,
+        0 // Will be updated later
+      );
+
+      const response = `📦 **Produit créé !**\n\n` +
+        `📦 **Nom:** ${productName}\n` +
+        `🏷️ **Code:** ${stockItem.productCode}\n\n` +
+        `💰 Veuillez définir le prix unitaire :\n\n` +
+        `📝 **Avec le code:** prix ${stockItem.productCode} [montant]\n` +
+        `💡 **Exemple:** prix ${stockItem.productCode} 500`;
 
       await this.sendSuccessMessage(phoneNumber, response);
 
       return {
         success: true,
         message: response,
-        data: { productName, waitingForPrice: true }
+        data: { stockItem, productCode: stockItem.productCode, waitingForPrice: true }
       };
 
     } catch (error) {
@@ -943,16 +976,19 @@ export class BotController {
         command.unitPrice
       );
 
-      let response = `✅ Prix défini pour ${stockItem.product}:\n`;
-      response += `💰 ${this.formatCurrency(command.unitPrice)}/unité\n\n`;
+      let response = `✅ **Prix défini avec succès !**\n\n`;
+      response += `📦 **Produit:** ${stockItem.product}\n`;
+      response += `🏷️ **Code:** ${stockItem.productCode}\n`;
+      response += `💰 **Prix:** ${this.formatCurrency(command.unitPrice)}/unité\n\n`;
       
       // Check if product has stock
       if (stockItem.quantity > 0) {
         const totalValue = stockItem.quantity * command.unitPrice;
-        response += `📊 Stock actuel: ${stockItem.quantity} unités\n`;
-        response += `💵 Valeur du stock: ${this.formatCurrency(totalValue)}`;
+        response += `📊 **Stock actuel:** ${stockItem.quantity} unités\n`;
+        response += `💵 **Valeur du stock:** ${this.formatCurrency(totalValue)}\n\n`;
+        response += `💡 **Commande rapide:** vente [qté] ${stockItem.productCode}`;
       } else {
-        response += `💡 Ajoutez du stock avec:\nstock ${stockItem.product} [quantité]`;
+        response += `💡 **Ajoutez du stock avec:**\nstock ${stockItem.productCode} [quantité]`;
       }
 
       await this.sendSuccessMessage(phoneNumber, response);

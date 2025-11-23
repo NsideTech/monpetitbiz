@@ -434,10 +434,19 @@ export class StockService {
     if (stockItem) {
       stockItem.unitPrice = unitPrice;
       stockItem.updatedAt = new Date();
+      
+      // Generate code if doesn't have one
+      if (!stockItem.productCode) {
+        stockItem.productCode = await this.generateProductCode(businessId, stockItem.product);
+      }
     } else {
+      // Generate product code for new product
+      const productCode = await this.generateProductCode(businessId, normalizedProduct);
+      
       stockItem = this.stockItemRepository.create({
         businessId,
         product: normalizedProduct,
+        productCode,
         quantity: 0,
         unitPrice,
       });
@@ -662,6 +671,7 @@ export class StockService {
    */
   async getAllProductsWithPrices(businessId: string): Promise<Array<{
     product: string;
+    productCode: string | null;
     quantity: number;
     unitPrice: number | null;
     stockStatus: 'ok' | 'low' | 'out';
@@ -673,6 +683,7 @@ export class StockService {
 
     return stockItems.map(item => ({
       product: item.product,
+      productCode: item.productCode,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       stockStatus: item.quantity === 0 ? 'out' : (item.quantity <= 5 ? 'low' : 'ok')
@@ -816,10 +827,19 @@ export class StockService {
     if (stockItem) {
       stockItem.quantity = baseQuantity;
       stockItem.updatedAt = new Date();
+      
+      // Generate code if doesn't have one
+      if (!stockItem.productCode) {
+        stockItem.productCode = await this.generateProductCode(businessId, stockItem.product);
+      }
     } else {
+      // Generate product code for new product
+      const productCode = await this.generateProductCode(businessId, normalizedProduct);
+      
       stockItem = this.stockItemRepository.create({
         businessId,
         product: normalizedProduct,
+        productCode,
         quantity: baseQuantity,
       });
     }
@@ -1056,5 +1076,140 @@ export class StockService {
     };
 
     await this.stockMovementService.recordMovement(movementData);
+  }
+
+  /**
+   * Generate a unique product code automatically
+   * Strategy: Extract meaningful parts from product name + ensure uniqueness
+   */
+  async generateProductCode(businessId: string, productName: string): Promise<string> {
+    const name = productName.toLowerCase().trim();
+    
+    // Remove special characters and split into words
+    const words = name
+      .replace(/[^\w\s]/g, '')
+      .split(/\s+/)
+      .filter(w => w.length > 1);
+    
+    // Extract numbers (for things like '50kg', '1.5L')
+    const numbers = name.match(/\d+/g);
+    
+    let code = '';
+    
+    // Strategy: Simple products (1-2 words) - use full or abbreviated form
+    if (words.length === 1) {
+      code = words[0].substring(0, 6).toUpperCase();
+    } 
+    else if (words.length === 2) {
+      // Take first 3 chars of each word
+      code = (words[0].substring(0, 3) + words[1].substring(0, 3)).toUpperCase();
+    }
+    // Complex products (3+ words) - use initials + numbers
+    else {
+      // Filter out common French articles
+      const stopWords = ['de', 'du', 'la', 'le', 'les', 'un', 'une', 'des'];
+      const important = words.filter(w => !stopWords.includes(w));
+      
+      // Take 2 letters from each important word (max 3 words)
+      code = important
+        .slice(0, 3)
+        .map(w => w.substring(0, 2))
+        .join('')
+        .toUpperCase();
+      
+      // Add number if present (e.g., '50' from '50kg')
+      if (numbers && numbers.length > 0) {
+        code += numbers[0];
+      }
+    }
+    
+    // Ensure minimum length of 2 characters
+    if (code.length < 2) {
+      code = name.substring(0, 6).replace(/[^\w]/g, '').toUpperCase();
+    }
+    
+    // Limit to 10 characters
+    code = code.substring(0, 10);
+    
+    // Ensure uniqueness
+    return await this.ensureUniqueCode(businessId, code);
+  }
+
+  /**
+   * Ensure the code is unique within the business
+   * If not, add a numeric suffix
+   */
+  private async ensureUniqueCode(businessId: string, baseCode: string): Promise<string> {
+    let code = baseCode;
+    let counter = 1;
+    
+    while (counter < 1000) {
+      const existing = await this.stockItemRepository.findOne({
+        where: {
+          businessId,
+          productCode: code,
+        },
+      });
+      
+      if (!existing) {
+        return code;
+      }
+      
+      // Try with numeric suffix
+      code = `${baseCode}${counter}`;
+      
+      // If too long, truncate base
+      if (code.length > 10) {
+        const maxBaseLength = 10 - String(counter).length;
+        const newBase = baseCode.substring(0, maxBaseLength);
+        code = `${newBase}${counter}`;
+      }
+      
+      counter++;
+    }
+    
+    throw new BadRequestException('Unable to generate unique product code');
+  }
+
+  /**
+   * Resolve a product by code or name
+   * Tries code first (more specific), then falls back to name
+   */
+  async resolveProduct(businessId: string, identifier: string): Promise<StockItem | null> {
+    // First, try to find by code (case-insensitive)
+    let stockItem = await this.stockItemRepository.findOne({
+      where: {
+        businessId,
+        productCode: identifier.toUpperCase(),
+      },
+    });
+
+    // If not found by code, try by normalized name
+    if (!stockItem) {
+      const normalizedName = this.productNormalizer.normalize(identifier);
+      const allItems = await this.stockItemRepository.find({
+        where: { businessId },
+      });
+
+      stockItem = allItems.find(
+        item => this.productNormalizer.normalize(item.product) === normalizedName
+      ) || null;
+    }
+
+    return stockItem;
+  }
+
+  /**
+   * Check if a product code already exists
+   */
+  async productCodeExists(businessId: string, productCode: string): Promise<boolean> {
+    const count = await this.stockItemRepository.count({
+      where: {
+        businessId,
+        productCode: productCode.toUpperCase(),
+      },
+    });
+    
+    return count > 0;
   }
 }

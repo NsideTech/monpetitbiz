@@ -324,6 +324,11 @@ export class CommandParserService {
     result = this.tryParseUnitPriceView(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
+    // Try stock update BEFORE stock query (more specific pattern should be checked first)
+    // This fixes: "stock b9000 10" being interpreted as stock query instead of stock update
+    result = this.tryParseStock(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
     // Try stock query BEFORE sale to avoid false positives (e.g., "produit b9000" should be stock query, not sale)
     result = this.tryParseStockQuery(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
@@ -333,9 +338,6 @@ export class CommandParserService {
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
     result = this.tryParseExpense(cleanText, patterns);
-    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
-
-    result = this.tryParseStock(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
     result = this.tryParseProductDelete(cleanText, patterns);

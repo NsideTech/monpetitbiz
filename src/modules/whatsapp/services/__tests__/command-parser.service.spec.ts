@@ -113,12 +113,38 @@ describe('CommandParserService', () => {
         expect(result.stockQuantity).toBe(25);
       });
 
+      it('should parse stock update with product code and quantity', () => {
+        const result = service.parseMessage('stock b9000 10');
+        
+        expect(result.type).toBe('stock');
+        expect(result.stockAction).toBe('update');
+        expect(result.product).toBe('b9000');
+        expect(result.stockQuantity).toBe(10);
+      });
+
+      it('should parse stock update with alphanumeric product code', () => {
+        const result = service.parseMessage('stock fer123 50');
+        
+        expect(result.type).toBe('stock');
+        expect(result.stockAction).toBe('update');
+        expect(result.product).toBe('fer123');
+        expect(result.stockQuantity).toBe(50);
+      });
+
       it('should parse stock query for specific product', () => {
         const result = service.parseMessage('stock pain');
         
         expect(result.type).toBe('stock_query');
         expect(result.stockAction).toBe('query');
         expect(result.product).toBe('pain');
+      });
+
+      it('should parse stock query with product code', () => {
+        const result = service.parseMessage('stock b9000');
+        
+        expect(result.type).toBe('stock_query');
+        expect(result.stockAction).toBe('query');
+        expect(result.product).toBe('b9000');
       });
 
       it('should parse general stock query', () => {
@@ -274,6 +300,65 @@ describe('CommandParserService', () => {
         expect(result.type).toBe('product_add');
         expect(result.product).toBe('lait');
         expect(result.unitPrice).toBe(600);
+      });
+    });
+
+    describe('Price Set commands', () => {
+      it('should parse simple price set command', () => {
+        const result = service.parseMessage('prix pain 250');
+        
+        expect(result.type).toBe('price_set');
+        expect(result.product).toBe('pain');
+        expect(result.unitPrice).toBe(250);
+        expect(result.confidence).toBeGreaterThan(0.5);
+      });
+
+      it('should parse price set with product code', () => {
+        const result = service.parseMessage('prix b9000 1000');
+        
+        expect(result.type).toBe('price_set');
+        expect(result.product).toBe('b9000');
+        expect(result.unitPrice).toBe(1000);
+        expect(result.confidence).toBeGreaterThan(0.5);
+      });
+
+      it('should parse price set with CFA currency', () => {
+        const result = service.parseMessage('prix fer 500 CFA');
+        
+        expect(result.type).toBe('price_set');
+        expect(result.product).toBe('fer');
+        expect(result.unitPrice).toBe(500);
+      });
+
+      it('should parse price set with quoted product name', () => {
+        const result = service.parseMessage('prix "pain blanc" 300');
+        
+        expect(result.type).toBe('price_set');
+        expect(result.product).toBe('pain blanc');
+        expect(result.unitPrice).toBe(300);
+      });
+
+      it('should parse price as synonym', () => {
+        const result = service.parseMessage('price sucre 400');
+        
+        expect(result.type).toBe('price_set');
+        expect(result.product).toBe('sucre');
+        expect(result.unitPrice).toBe(400);
+      });
+
+      it('should parse price query without amount', () => {
+        const result = service.parseMessage('prix pain');
+        
+        expect(result.type).toBe('unit_price_view');
+        expect(result.product).toBe('pain');
+        expect(result.confidence).toBeGreaterThan(0.5);
+      });
+
+      it('should parse price query with product code', () => {
+        const result = service.parseMessage('prix b9000');
+        
+        expect(result.type).toBe('unit_price_view');
+        expect(result.product).toBe('b9000');
       });
     });
 

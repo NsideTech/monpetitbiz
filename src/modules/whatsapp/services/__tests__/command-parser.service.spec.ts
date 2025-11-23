@@ -205,6 +205,78 @@ describe('CommandParserService', () => {
       });
     });
 
+    describe('Product Add commands', () => {
+      it('should parse simple product add without price', () => {
+        const result = service.parseMessage('ajout produit pain');
+        
+        expect(result.type).toBe('product_add');
+        expect(result.product).toBe('pain');
+        expect(result.unitPrice).toBeUndefined();
+        expect(result.confidence).toBeGreaterThan(0.5);
+      });
+
+      it('should parse product add with price', () => {
+        const result = service.parseMessage('ajout produit fer 1000');
+        
+        expect(result.type).toBe('product_add');
+        expect(result.product).toBe('fer');
+        expect(result.unitPrice).toBe(1000);
+        expect(result.confidence).toBeGreaterThan(0.5);
+      });
+
+      it('should parse product add with price and CFA', () => {
+        const result = service.parseMessage('ajout produit sucre 500 CFA');
+        
+        expect(result.type).toBe('product_add');
+        expect(result.product).toBe('sucre');
+        expect(result.unitPrice).toBe(500);
+        expect(result.confidence).toBeGreaterThan(0.5);
+      });
+
+      it('should parse product add with "prix" keyword', () => {
+        const result = service.parseMessage('ajout produit riz prix 800');
+        
+        expect(result.type).toBe('product_add');
+        expect(result.product).toBe('riz');
+        expect(result.unitPrice).toBe(800);
+        expect(result.confidence).toBeGreaterThan(0.5);
+      });
+
+      it('should parse product add with quoted name and price', () => {
+        const result = service.parseMessage('ajout produit "pain blanc" 300');
+        
+        expect(result.type).toBe('product_add');
+        expect(result.product).toBe('pain blanc');
+        expect(result.unitPrice).toBe(300);
+        expect(result.confidence).toBeGreaterThan(0.5);
+      });
+
+      it('should parse product add with single quotes and price', () => {
+        const result = service.parseMessage("ajout produit 'ciment 50kg' 5000");
+        
+        expect(result.type).toBe('product_add');
+        expect(result.product).toBe('ciment 50kg');
+        expect(result.unitPrice).toBe(5000);
+        expect(result.confidence).toBeGreaterThan(0.5);
+      });
+
+      it('should parse ajouter as synonym', () => {
+        const result = service.parseMessage('ajouter produit huile 1200');
+        
+        expect(result.type).toBe('product_add');
+        expect(result.product).toBe('huile');
+        expect(result.unitPrice).toBe(1200);
+      });
+
+      it('should parse create as synonym', () => {
+        const result = service.parseMessage('create produit lait 600');
+        
+        expect(result.type).toBe('product_add');
+        expect(result.product).toBe('lait');
+        expect(result.unitPrice).toBe(600);
+      });
+    });
+
     describe('Fallback parsing', () => {
       it('should handle unrecognized commands with amount', () => {
         const result = service.parseMessage('quelque chose 1500');

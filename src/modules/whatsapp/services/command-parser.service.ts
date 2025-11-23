@@ -131,12 +131,12 @@ export class CommandParserService {
       /^(?:prix|price)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
     ],
     productAdd: [
-      // Format: ajout produit 'nom_produit'
+      // Format: ajout produit 'nom_produit' prix - must be checked before the simple form
+      /^(?:ajout|ajouter|add|create)\s+produit\s+['"]?([^'"]+?)['"]?\s+(?:prix|price|à)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
+      // Format: ajout produit 'nom_produit' 500 - must be checked before the simple form
+      /^(?:ajout|ajouter|add|create)\s+produit\s+['"]?(.+?)['"]?\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
+      // Format: ajout produit 'nom_produit' - simple form without price
       /^(?:ajout|ajouter|add|create)\s+produit\s+['"]?([^'"]+)['"]?$/i,
-      // Format: ajout produit 'nom_produit' prix
-      /^(?:ajout|ajouter|add|create)\s+produit\s+['"]?([^'"]+)['"]?\s+(?:prix|price|à)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
-      // Format: ajout produit 'nom_produit' 500
-      /^(?:ajout|ajouter|add|create)\s+produit\s+['"]?([^'"]+)['"]?\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
       // Format: nouveau produit 'nom_produit'
       /^(?:nouveau|nouvelle|new)\s+produit\s+['"]?([^'"]+)['"]?$/i,
       // Format: créer produit 'nom_produit'

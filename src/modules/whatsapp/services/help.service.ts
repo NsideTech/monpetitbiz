@@ -115,10 +115,10 @@ export class HelpService {
 
     // Sales commands (available to all roles)
     message += `🛒 **VENTES**\n`;
-    message += `• "vente 1000" - Enregistrer une vente de 1000 CFA\n`;
+    // message += `• "vente 1000" - Enregistrer une vente de 1000 CFA\n`;
     message += `• "vente 10 pain" - Vendre 10 unités (calcul auto si prix défini)\n`;
     message += `• "vente 10 pain 3000" - Vendre 10 unités pour 3000 CFA\n`;
-    message += `• "j'ai vendu 2000" - Vente rapide de 2000 CFA\n\n`;
+    // message += `• "j'ai vendu 2000" - Vente rapide de 2000 CFA\n\n`;
 
     // Price commands (available to all roles)
     message += `💰 **PRIX**\n`;
@@ -127,11 +127,12 @@ export class HelpService {
 
     // Stock commands (available to all roles)
     message += `📦 **STOCK & PRODUITS**\n`;
+    message += `• "ajout produit pain" - Ajouter un nouveau produit\n`;
+    message += `• "ajout produit pain 400" - Ajouter un nouveau produit avec prix unitaire de 400 CFA\n`;
     message += `• "produits" - Voir la liste de tous les produits\n`;
-    message += `• "ajout produit pain 400" - Ajouter un nouveau produit\n`;
+    message += `• "produit pain" - Voir les détails d'un produit\n`;
     message += `• "stock pain 10" - Mettre le stock de pain à 10\n`;
     message += `• "stock pain" - Voir le stock, prix et valeur\n`;
-    message += `• "produit pain" - Voir les détails d'un produit\n`;
     
     // Product deletion (owner and manager only)
     if (userRole === 'owner' || userRole === 'manager') {
@@ -147,18 +148,18 @@ export class HelpService {
     message += `• Utilisez le code: "stock CIM50 100" (plus rapide!)\n\n`;
 
     // Units commands (available to all roles)
-    message += `📏 **UNITÉS MULTIPLES**\n`;
-    message += `• "produit unité bière achat caisse 24 bouteille" - Configurer les unités\n`;
-    message += `• "stock bière 5 caisse" - Ajouter du stock en unité d'achat\n`;
-    message += `• "prix achat bière 12000 caisse" - Définir le prix d'achat\n`;
-    message += `• "prix vente bière 40%" - Définir la marge de vente\n\n`;
+    // message += `📏 **UNITÉS MULTIPLES**\n`;
+    // message += `• "produit unité bière achat caisse 24 bouteille" - Configurer les unités\n`;
+    // message += `• "stock bière 5 caisse" - Ajouter du stock en unité d'achat\n`;
+    // message += `• "prix achat bière 12000 caisse" - Définir le prix d'achat\n`;
+    // message += `• "prix vente bière 40%" - Définir la marge de vente\n\n`;
 
     // Expenses (owner only)
     if (userRole === 'owner') {
       message += `💸 **DÉPENSES** (Propriétaire uniquement)\n`;
       message += `• "dépense 500" - Enregistrer une dépense de 500 CFA\n`;
       message += `• "dépense 300 marchandise" - Achat de marchandise\n`;
-      message += `• "j'ai acheté 1000" - Dépense rapide\n\n`;
+      // message += `• "j'ai acheté 1000" - Dépense rapide\n\n`;
     }
 
     // Reports and balance

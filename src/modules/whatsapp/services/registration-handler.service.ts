@@ -949,7 +949,7 @@ export class RegistrationHandlerService {
     }
 
     return {
-      message: `❌ Réponse non reconnue (tentative ${attempts}/3).\n\n` +
+      message: `Bienvenue ! Pour commencer, dites-moi qui vous êtes :\n\n` +
         "Veuillez choisir :\n" +
         "1️⃣ Propriétaire d'entreprise\n" +
         "2️⃣ Employé\n\n" +

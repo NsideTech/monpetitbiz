@@ -219,6 +219,9 @@ export class BotController {
       case 'transaction_list':
         return await this.handleTransactionListCommand(phoneNumber, command, userContext);
 
+      case 'add_owner':
+        return await this.handleAddOwnerCommand(phoneNumber, command, userContext);
+
       case 'help':
         return await this.handleHelpCommand(phoneNumber, command, userContext);
 
@@ -1245,6 +1248,101 @@ export class BotController {
       await this.sendErrorMessage(message.from, errorResponse);
 
       return { success: false, message: errorResponse };
+    }
+  }
+
+  /**
+   * Handle add owner command
+   * Only owners can add other owners
+   */
+  private async handleAddOwnerCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      // Check if user is authenticated and is an owner
+      if (!userContext.isAuthenticated) {
+        const response = '❌ Vous devez être connecté pour ajouter un administrateur.';
+        await this.sendErrorMessage(phoneNumber, response);
+        return { success: false, message: response };
+      }
+
+      if (userContext.role !== 'owner') {
+        const response = '❌ Seuls les propriétaires peuvent ajouter d\'autres administrateurs.';
+        await this.sendErrorMessage(phoneNumber, response);
+        return { success: false, message: response };
+      }
+
+      // If phone number and name are provided, add directly
+      if (command.newOwnerPhoneNumber && command.newOwnerName) {
+        try {
+          const result = await this.authService.addOwnerToBusiness(
+            phoneNumber,
+            command.newOwnerPhoneNumber,
+            command.newOwnerName,
+            userContext.language || 'fr'
+          );
+
+          const successMessage = `✅ **Administrateur ajouté avec succès !**\n\n` +
+            `👤 **Nom :** ${command.newOwnerName}\n` +
+            `📱 **Numéro :** ${command.newOwnerPhoneNumber}\n` +
+            `🏢 **Entreprise :** ${result.user.business.name}\n\n` +
+            `${command.newOwnerName} est maintenant administrateur de votre entreprise avec les mêmes permissions que vous.`;
+
+          await this.sendSuccessMessage(phoneNumber, successMessage);
+
+          return {
+            success: true,
+            message: successMessage,
+            data: {
+              newOwner: {
+                id: result.user.id,
+                phoneNumber: result.user.phoneNumber,
+                name: result.user.employeeName,
+              }
+            }
+          };
+        } catch (error) {
+          this.logger.error(`Error adding owner for ${phoneNumber}:`, error);
+          
+          let errorMessage = '❌ Erreur lors de l\'ajout de l\'administrateur.';
+          if (error.status === 403) {
+            errorMessage = '❌ Seuls les propriétaires peuvent ajouter d\'autres administrateurs.';
+          } else if (error.status === 409) {
+            errorMessage = `❌ ${error.message || 'Ce numéro est déjà utilisé dans une autre entreprise.'}`;
+          } else if (error.message) {
+            errorMessage = `❌ ${error.message}`;
+          }
+
+          await this.sendErrorMessage(phoneNumber, errorMessage);
+          return { success: false, message: errorMessage };
+        }
+      }
+
+      // If parameters not provided, ask for them
+      const promptMessage = `📝 **Ajouter un administrateur**\n\n` +
+        `Pour ajouter un autre administrateur à votre entreprise, j'ai besoin de :\n\n` +
+        `1️⃣ Le numéro de téléphone WhatsApp\n` +
+        `2️⃣ Le nom complet\n\n` +
+        `💡 **Format :**\n` +
+        `\`ajouter administrateur [numéro] [nom]\`\n\n` +
+        `**Exemple :**\n` +
+        `\`ajouter administrateur +226709876543 Fatou Diallo\``;
+
+      await this.sendSuccessMessage(phoneNumber, promptMessage);
+
+      return {
+        success: true,
+        message: promptMessage,
+        data: { awaitingInput: true }
+      };
+
+    } catch (error) {
+      this.logger.error('Error handling add owner command:', error);
+      const response = '❌ Erreur lors du traitement de la commande. Veuillez réessayer.';
+      await this.sendErrorMessage(phoneNumber, response);
+      return { success: false, message: response };
     }
   }
 

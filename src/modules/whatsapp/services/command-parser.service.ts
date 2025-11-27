@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 export interface ParsedCommand {
-  type: 'sale' | 'expense' | 'stock' | 'stock_query' | 'product_list' | 'price_set' | 'product_add' | 'balance' | 'report' | 'registration' | 'help' | 'unknown' | 'unit_config' | 'unit_view' | 'unit_stock' | 'unit_price_purchase' | 'unit_price_selling' | 'unit_alert' | 'unit_history' | 'unit_price_view' | 'product_delete' | 'confirm_delete' | 'cart_create' | 'cart_add' | 'cart_remove' | 'cart_view' | 'cart_finalize' | 'cart_cancel' | 'transaction_list';
+  type: 'sale' | 'expense' | 'stock' | 'stock_query' | 'product_list' | 'price_set' | 'product_add' | 'balance' | 'report' | 'registration' | 'help' | 'unknown' | 'unit_config' | 'unit_view' | 'unit_stock' | 'unit_price_purchase' | 'unit_price_selling' | 'unit_alert' | 'unit_history' | 'unit_price_view' | 'product_delete' | 'confirm_delete' | 'cart_create' | 'cart_add' | 'cart_remove' | 'cart_view' | 'cart_finalize' | 'cart_cancel' | 'transaction_list' | 'add_owner';
   amount?: number;
   quantity?: number; // For sales by quantity (e.g., "vente 10 pain")
   product?: string;
@@ -24,6 +24,9 @@ export interface ParsedCommand {
   // Transaction list fields
   transactionType?: 'sale' | 'expense' | 'all';
   limit?: number;
+  // Add owner fields
+  newOwnerPhoneNumber?: string;
+  newOwnerName?: string;
 }
 
 export interface LanguagePatterns {
@@ -54,9 +57,10 @@ export interface LanguagePatterns {
   cartAdd: RegExp[];
   cartRemove: RegExp[];
   cartView: RegExp[];
-  cartFinalize: RegExp[];
-  cartCancel: RegExp[];
-  transactionList: RegExp[];
+    cartFinalize: RegExp[];
+    cartCancel: RegExp[];
+    transactionList: RegExp[];
+    addOwner: RegExp[];
 }
 
 @Injectable()
@@ -248,6 +252,16 @@ export class CommandParserService {
       /^(?:dépenses?|depenses?|expenses?)\s+(jour|today|semaine|week|mois|month)$/i,
       /^(?:liste\s+)?(?:dépenses?|depenses?|expenses?)$/i,
     ],
+    addOwner: [
+      // Format: ajouter administrateur +226709876543 Fatou Diallo
+      /^(?:ajouter|ajout|add)\s+(?:administrateur|admin|propriétaire|proprietaire|owner)\s+(\+?\d{10,15})\s+(.+)$/i,
+      // Format: ajouter admin +226709876543 Fatou Diallo
+      /^(?:ajouter|ajout|add)\s+admin\s+(\+?\d{10,15})\s+(.+)$/i,
+      // Format: ajouter propriétaire +226709876543 Fatou Diallo
+      /^(?:ajouter|ajout|add)\s+propriétaire\s+(\+?\d{10,15})\s+(.+)$/i,
+      // Format: ajouter administrateur (sans paramètres - déclenche le flux)
+      /^(?:ajouter|ajout|add)\s+(?:administrateur|admin|propriétaire|proprietaire|owner)$/i,
+    ],
   };
 
   // TODO: Add Mooré (Burkina Faso) language support
@@ -382,6 +396,9 @@ export class CommandParserService {
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
     result = this.tryParseTransactionList(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseAddOwner(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
     // Fallback: try to extract amount and product for generic parsing
@@ -1041,6 +1058,30 @@ export class CommandParserService {
           period,
           transactionType,
           limit: 20, // Default to 20 most recent transactions
+          confidence: 0.9,
+        };
+      }
+    }
+
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  private tryParseAddOwner(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.addOwner) {
+      const match = text.match(pattern);
+      if (match) {
+        // If we have phone number and name in the match
+        if (match[1] && match[2]) {
+          return {
+            type: 'add_owner',
+            newOwnerPhoneNumber: match[1].trim(),
+            newOwnerName: match[2].trim(),
+            confidence: 0.95,
+          };
+        }
+        // If only the command without parameters
+        return {
+          type: 'add_owner',
           confidence: 0.9,
         };
       }

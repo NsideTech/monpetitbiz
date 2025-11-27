@@ -161,6 +161,7 @@
                     <li onclick="quickCommand('vente 10 pain')">• vente 10 pain</li>
                     <li onclick="quickCommand('stock')">• stock</li>
                     <li onclick="quickCommand('bilan')">• bilan</li>
+                    <li onclick="quickCommand('ajouter administrateur +226709876543 Fatou Diallo')">• ajouter administrateur</li>
                     <li onclick="quickCommand('aide')">• aide</li>
                 </ul>
             </div>
@@ -351,6 +352,54 @@
                 return response;
             }
             
+            // Commande ajouter administrateur
+            if (message.indexOf('ajouter ') === 0 || message.indexOf('ajout ') === 0) {
+                var parts = userMessage.split(' '); // Utiliser le message original pour préserver le numéro avec +
+                
+                // Chercher les patterns: ajouter admin/administrateur/propriétaire [numéro] [nom]
+                if (parts.length >= 4 && 
+                    (parts[1].toLowerCase() === 'admin' || 
+                     parts[1].toLowerCase() === 'administrateur' || 
+                     parts[1].toLowerCase() === 'propriétaire' ||
+                     parts[1].toLowerCase() === 'proprietaire' ||
+                     parts[1].toLowerCase() === 'owner')) {
+                    
+                    var phoneNumber = parts[2];
+                    var ownerName = parts.slice(3).join(' '); // Prendre tout le reste comme nom
+                    
+                    // Validation basique du numéro (doit contenir + ou des chiffres)
+                    if (phoneNumber.match(/^\+?\d{10,15}$/)) {
+                        return '✅ **Administrateur ajouté avec succès !**\n\n' +
+                            '👤 **Nom :** ' + ownerName + '\n' +
+                            '📱 **Numéro :** ' + phoneNumber + '\n' +
+                            '🏢 **Entreprise :** Votre Entreprise (Simulation)\n\n' +
+                            ownerName + ' est maintenant administrateur de votre entreprise avec les mêmes permissions que vous.\n\n' +
+                            '💡 **Note :** Ceci est une simulation. Dans l\'application réelle, l\'administrateur recevra un token d\'accès.';
+                    } else {
+                        return '❌ Format de numéro invalide.\n\n' +
+                            '💡 **Format :**\n' +
+                            '`ajouter administrateur [numéro] [nom]`\n\n' +
+                            '**Exemple :**\n' +
+                            '`ajouter administrateur +226709876543 Fatou Diallo`';
+                    }
+                } else if (parts.length >= 2 && 
+                          (parts[1].toLowerCase() === 'admin' || 
+                           parts[1].toLowerCase() === 'administrateur' || 
+                           parts[1].toLowerCase() === 'propriétaire' ||
+                           parts[1].toLowerCase() === 'proprietaire' ||
+                           parts[1].toLowerCase() === 'owner')) {
+                    // Commande sans paramètres - demander les infos
+                    return '📝 **Ajouter un administrateur**\n\n' +
+                        'Pour ajouter un autre administrateur à votre entreprise, j\'ai besoin de :\n\n' +
+                        '1️⃣ Le numéro de téléphone WhatsApp\n' +
+                        '2️⃣ Le nom complet\n\n' +
+                        '💡 **Format :**\n' +
+                        '`ajouter administrateur [numéro] [nom]`\n\n' +
+                        '**Exemple :**\n' +
+                        '`ajouter administrateur +226709876543 Fatou Diallo`';
+                }
+            }
+            
             // Commande aide
             if (message === 'aide' || message === 'help') {
                 return '🤖 **AIDE - SIMULATEUR OFFLINE**\n\n' +
@@ -367,12 +416,16 @@
                     '• "vente pain 500" - Prix personnalisé\n' +
                     '• "vente 10 pain 2500" - Quantité + montant\n' +
                     '• "vente 1000" - Montant libre\n\n' +
+                    '👥 **GESTION DES ADMINISTRATEURS:**\n' +
+                    '• "ajouter administrateur [numéro] [nom]" - Ajouter un admin\n' +
+                    '• "ajouter admin [numéro] [nom]" - Raccourci\n\n' +
                     '📊 **RAPPORTS:**\n' +
                     '• "bilan" - Voir le bilan du jour\n\n' +
                     '✨ **NOUVEAUTÉS:**\n' +
                     '• Calcul automatique des prix\n' +
                     '• Gestion des prix unitaires\n' +
-                    '• Liste complète des produits';
+                    '• Liste complète des produits\n' +
+                    '• Ajout d\'administrateurs';
             }
             
             // Message par défaut
@@ -382,7 +435,9 @@
                 '• "produits" - Voir la liste complète\n' +
                 '• "prix pain 300" - Définir un prix\n' +
                 '• "vente 10 pain" - Vente avec calcul auto\n' +
-                '• "stock pain 50" - Gérer le stock';
+                '• "stock pain 50" - Gérer le stock\n' +
+                '• "ajouter administrateur [numéro] [nom]" - Ajouter un admin\n' +
+                '• "bilan" - Voir le bilan du jour';
         }
         
         function handleSaleCommand(message) {
@@ -593,10 +648,12 @@
             addMessage('📊 **DONNÉES INITIALES CHARGÉES:**\n\n' +
                 '📦 Stock disponible:\n' + stockList + 
                 '\n💰 Prix unitaires:\n' + priceList +
-                '\n💡 Nouvelles fonctionnalités:\n' +
+                '\n💡 Fonctionnalités disponibles:\n' +
                 '• "produits" - Voir la liste complète\n' +
                 '• "vente 10 pain" - Calcul automatique\n' +
-                '• "prix pain 300" - Définir les prix'
+                '• "prix pain 300" - Définir les prix\n' +
+                '• "ajouter administrateur [numéro] [nom]" - Ajouter un admin\n' +
+                '• "aide" - Voir toutes les commandes'
             );
         }, 1000);
     </script>

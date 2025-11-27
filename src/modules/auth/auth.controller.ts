@@ -98,6 +98,25 @@ export class RegisterEmployeeRequestDto {
   language?: string;
 }
 
+export class AddOwnerRequestDto {
+  @IsString()
+  @IsNotEmpty()
+  ownerPhoneNumber: string;
+
+  @IsString()
+  @IsNotEmpty()
+  newOwnerPhoneNumber: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @Length(2, 100)
+  newOwnerName: string;
+
+  @IsOptional()
+  @IsString()
+  language?: string;
+}
+
 @Controller('auth')
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class AuthController {
@@ -295,6 +314,66 @@ export class AuthController {
         success: false,
         error: 'REGISTRATION_FAILED',
         message: 'Erreur lors de l\'inscription. Veuillez réessayer.',
+      };
+    }
+  }
+
+  /**
+   * Add another owner (administrator) to an existing business
+   * Only existing owners can add other owners
+   */
+  @Post('add-owner')
+  @HttpCode(HttpStatus.CREATED)
+  async addOwner(@Body() addOwnerDto: AddOwnerRequestDto) {
+    try {
+      const result = await this.authService.addOwnerToBusiness(
+        addOwnerDto.ownerPhoneNumber,
+        addOwnerDto.newOwnerPhoneNumber,
+        addOwnerDto.newOwnerName,
+        addOwnerDto.language
+      );
+
+      return {
+        success: true,
+        data: {
+          user: {
+            id: result.user.id,
+            phoneNumber: result.user.phoneNumber,
+            employeeName: result.user.employeeName,
+            role: result.user.role,
+            language: result.user.language,
+            businessId: result.user.businessId,
+            business: {
+              id: result.user.business.id,
+              name: result.user.business.name,
+              businessCode: result.user.business.businessCode,
+            },
+          },
+          accessToken: result.accessToken,
+        },
+        message: `✅ Administrateur ajouté avec succès! ${addOwnerDto.newOwnerName} est maintenant propriétaire de ${result.user.business.name}.`,
+      };
+    } catch (error) {
+      if (error.status === 403) {
+        return {
+          success: false,
+          error: 'FORBIDDEN',
+          message: error.message || 'Seuls les propriétaires peuvent ajouter d\'autres propriétaires.',
+        };
+      }
+      
+      if (error.status === 409) {
+        return {
+          success: false,
+          error: 'PHONE_EXISTS',
+          message: error.message || 'Un utilisateur avec ce numéro de téléphone existe déjà.',
+        };
+      }
+      
+      return {
+        success: false,
+        error: 'ADD_OWNER_FAILED',
+        message: error.message || 'Erreur lors de l\'ajout de l\'administrateur. Veuillez réessayer.',
       };
     }
   }

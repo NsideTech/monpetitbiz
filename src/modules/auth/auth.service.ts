@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -257,6 +257,77 @@ export class AuthService {
 
     // Return the user with business relation loaded
     const userWithBusiness = await this.getUserByPhone(cleanPhoneNumber);
+
+    return {
+      user: userWithBusiness!,
+      accessToken,
+    };
+  }
+
+  /**
+   * Add another owner (administrator) to an existing business
+   * Only existing owners can add other owners
+   */
+  async addOwnerToBusiness(
+    ownerPhoneNumber: string,
+    newOwnerPhoneNumber: string,
+    newOwnerName: string,
+    language?: string
+  ): Promise<AuthResult> {
+    const cleanOwnerPhone = this.cleanPhoneNumber(ownerPhoneNumber);
+    const cleanNewOwnerPhone = this.cleanPhoneNumber(newOwnerPhoneNumber);
+
+    // Verify the requester is an owner
+    const requester = await this.getUserByPhone(cleanOwnerPhone);
+    if (!requester) {
+      throw new ForbiddenException('Requester not found.');
+    }
+
+    if (requester.role !== UserRole.OWNER) {
+      throw new ForbiddenException('Only business owners can add other owners.');
+    }
+
+    if (!requester.businessId) {
+      throw new BadRequestException('Requester is not associated with a business.');
+    }
+
+    // Check if new owner already exists
+    const existingUser = await this.getUserByPhone(cleanNewOwnerPhone);
+    if (existingUser) {
+      if (existingUser.businessId === requester.businessId) {
+        throw new ConflictException('This user is already part of your business.');
+      }
+      throw new ConflictException('User with this phone number already exists in another business.');
+    }
+
+    // Get the business
+    const business = await this.businessRepository.findOne({
+      where: { id: requester.businessId }
+    });
+
+    if (!business) {
+      throw new BadRequestException('Business not found.');
+    }
+
+    // Create new owner user
+    const newOwner = this.userRepository.create({
+      phoneNumber: cleanNewOwnerPhone,
+      employeeName: newOwnerName.trim(),
+      businessId: business.id,
+      role: UserRole.OWNER,
+      language: language || 'fr',
+      isActive: true,
+      joinedAt: new Date(),
+      invitedBy: requester.id,
+    });
+
+    const savedOwner = await this.userRepository.save(newOwner);
+
+    // Generate JWT token for immediate authentication
+    const accessToken = await this.generateJwtToken(savedOwner);
+
+    // Return the user with business relation loaded
+    const userWithBusiness = await this.getUserByPhone(cleanNewOwnerPhone);
 
     return {
       user: userWithBusiness!,

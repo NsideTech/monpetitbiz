@@ -70,11 +70,6 @@ export class OnboardingMessagesService {
       `🔑 **Code entreprise :** ${businessCode}\n\n` +
       `📦 **Configuration des produits**\n\n` +
       `Maintenant, configurons vos produits avec leurs prix unitaires.\n\n` +
-      `💡 **Format :** \`nom_produit: prix\`\n` +
-      `**Exemples :**\n` +
-      `• Pain: 500\n` +
-      `• Lait: 750\n` +
-      `• Riz: 1200\n\n` +
       `📝 **Commandes disponibles :**\n` +
       `• Ajoutez un produit : \`nom_produit: prix\`\n` +
       `• Terminer : \`terminer\` ou \`fin\`\n` +
@@ -211,7 +206,7 @@ export class OnboardingMessagesService {
       message += `Tapez "aide" pour plus d'exemples ou "stop" pour annuler.`;
     } else {
       message += `⚠️ **Limite d'essais atteinte (${maxAttempts}/${maxAttempts})**\n\n`;
-      message += `Pour recommencer, tapez "créer une nouvelle entreprise".\n`;
+      message += `Pour recommencer, tapez "créer entreprise".\n`;
       message += `Ou tapez "aide" pour obtenir de l'assistance.`;
     }
 

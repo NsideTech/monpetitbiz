@@ -180,35 +180,35 @@ describe('OnboardingCheckMiddleware', () => {
       const result = await middleware.generateOnboardingPrompt('+226123456789', 'vente 1000');
       
       expect(result).toContain('Pour enregistrer des ventes');
-      expect(result).toContain('créer une nouvelle entreprise');
+      expect(result).toContain('créer entreprise');
     });
 
     it('should return stock-specific prompt for stock attempts', async () => {
       const result = await middleware.generateOnboardingPrompt('+226123456789', 'stock pain');
       
       expect(result).toContain('Pour gérer votre stock');
-      expect(result).toContain('créer une nouvelle entreprise');
+      expect(result).toContain('créer entreprise');
     });
 
     it('should return expense-specific prompt for expense attempts', async () => {
       const result = await middleware.generateOnboardingPrompt('+226123456789', 'dépense 500');
       
       expect(result).toContain('Pour enregistrer des dépenses');
-      expect(result).toContain('créer une nouvelle entreprise');
+      expect(result).toContain('créer entreprise');
     });
 
     it('should return general prompt for unknown actions', async () => {
       const result = await middleware.generateOnboardingPrompt('+226123456789', 'unknown command');
       
       expect(result).toContain('Bienvenue !');
-      expect(result).toContain('créer une nouvelle entreprise');
+      expect(result).toContain('créer entreprise');
     });
 
     it('should return general prompt when no action provided', async () => {
       const result = await middleware.generateOnboardingPrompt('+226123456789');
       
       expect(result).toContain('Bienvenue !');
-      expect(result).toContain('créer une nouvelle entreprise');
+      expect(result).toContain('créer entreprise');
     });
   });
 
@@ -224,7 +224,7 @@ describe('OnboardingCheckMiddleware', () => {
     it('should allow onboarding actions for non-onboarded users', async () => {
       authService.getUserByPhone.mockResolvedValue(null);
 
-      const result = await middleware.canExecuteAction('+226999999999', 'créer une nouvelle entreprise');
+      const result = await middleware.canExecuteAction('+226999999999', 'créer entreprise');
 
       expect(result).toEqual({ allowed: true });
     });
@@ -252,7 +252,7 @@ describe('OnboardingCheckMiddleware', () => {
     it('should allow processing for onboarding actions', async () => {
       authService.getUserByPhone.mockResolvedValue(null);
 
-      const result = await middleware.interceptMessage('+226999999999', 'créer une nouvelle entreprise');
+      const result = await middleware.interceptMessage('+226999999999', 'créer entreprise');
 
       expect(result).toEqual({ shouldProcess: true });
     });
@@ -280,7 +280,7 @@ describe('OnboardingCheckMiddleware', () => {
     it('should handle errors gracefully and allow onboarding actions', async () => {
       authService.getUserByPhone.mockRejectedValue(new Error('Database error'));
 
-      const result = await middleware.interceptMessage('+226123456789', 'créer une nouvelle entreprise');
+      const result = await middleware.interceptMessage('+226123456789', 'créer entreprise');
 
       expect(result).toEqual({ shouldProcess: true });
     });

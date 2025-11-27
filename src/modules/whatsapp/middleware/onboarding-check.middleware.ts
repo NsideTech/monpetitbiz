@@ -21,17 +21,17 @@ export class OnboardingCheckMiddleware {
 
     // Messages that trigger onboarding prompts based on action type
     private readonly ONBOARDING_PROMPTS = {
-        general: "👋 Bienvenue ! Pour utiliser ce service, vous devez d'abord créer votre compte.\n\n📝 Tapez 'créer une nouvelle entreprise' pour commencer.",
+        general: "👋 Bienvenue ! Pour utiliser ce service, vous devez d'abord créer votre compte.\n\n📝 Tapez 'créer entreprise' pour commencer.",
 
-        afterSaleAttempt: "💰 Pour enregistrer des ventes, vous devez d'abord créer votre entreprise.\n\n📝 Tapez 'créer une nouvelle entreprise' pour commencer l'inscription.",
+        afterSaleAttempt: "💰 Pour enregistrer des ventes, vous devez d'abord créer votre entreprise.\n\n📝 Tapez 'créer entreprise' pour commencer l'inscription.",
 
-        afterStockAttempt: "📦 Pour gérer votre stock, vous devez d'abord créer votre entreprise.\n\n📝 Tapez 'créer une nouvelle entreprise' pour commencer l'inscription.",
+        afterStockAttempt: "📦 Pour gérer votre stock, vous devez d'abord créer votre entreprise.\n\n📝 Tapez 'créer entreprise' pour commencer l'inscription.",
 
-        afterReportAttempt: "📊 Pour consulter vos rapports, vous devez d'abord créer votre entreprise.\n\n📝 Tapez 'créer une nouvelle entreprise' pour commencer l'inscription.",
+        afterReportAttempt: "📊 Pour consulter vos rapports, vous devez d'abord créer votre entreprise.\n\n📝 Tapez 'créer entreprise' pour commencer l'inscription.",
 
-        afterExpenseAttempt: "💸 Pour enregistrer des dépenses, vous devez d'abord créer votre entreprise.\n\n📝 Tapez 'créer une nouvelle entreprise' pour commencer l'inscription.",
+        afterExpenseAttempt: "💸 Pour enregistrer des dépenses, vous devez d'abord créer votre entreprise.\n\n📝 Tapez 'créer entreprise' pour commencer l'inscription.",
 
-        afterBalanceAttempt: "📈 Pour consulter votre bilan, vous devez d'abord créer votre entreprise.\n\n📝 Tapez 'créer une nouvelle entreprise' pour commencer l'inscription."
+        afterBalanceAttempt: "📈 Pour consulter votre bilan, vous devez d'abord créer votre entreprise.\n\n📝 Tapez 'créer entreprise' pour commencer l'inscription."
     };
 
     constructor(

@@ -159,7 +159,18 @@ export class RegistrationHandlerService {
         return await this.handleMerchantConfirmation(phoneNumber, message, state);
 
       case 'product_setup':
-        return await this.handleProductSetup(phoneNumber, message, state);
+        // Product setup step is no longer part of the onboarding flow
+        // If a user is stuck in this state, clear it and show completion message
+        this.logger.warn(`User ${phoneNumber} is in deprecated product_setup step, clearing state`);
+        this.conversationStateService.clearState(phoneNumber);
+        const businessName = state.businessName || '';
+        const ownerName = state.ownerName || '';
+        const businessCode = state.businessCode || '';
+        return {
+          message: this.getMerchantCompletionMessage(businessName, ownerName, businessCode),
+          completed: true,
+          nextStep: 'completed'
+        };
 
       default:
         this.logger.warn(`Unknown registration step: ${state.step}`);
@@ -234,7 +245,7 @@ export class RegistrationHandlerService {
 
     if (!shouldProceed) {
       return {
-        message: "🤔 Pour créer votre entreprise, tapez 'continuer', 'oui' ou '1'.\n\n" +
+        message: "🤔 Pour créer votre entreprise, tapez 'continuer'.\n\n" +
           "Ou tapez 'aide' pour plus d'informations, 'stop' pour annuler.",
         completed: false,
         nextStep: 'merchant_onboarding_start'
@@ -566,29 +577,16 @@ export class RegistrationHandlerService {
       const businessCode = registrationResult.user.business?.businessCode;
       const businessId = registrationResult.user.businessId;
 
-      // Update registration state to product_setup step
-      this.conversationStateService.setRegistrationState(phoneNumber, {
-        step: 'product_setup',
-        type: 'merchant',
-        phoneNumber: phoneNumber,
-        businessName: businessName,
-        ownerName: ownerName,
-        businessCode: businessCode,
-        products: [],
-        data: {
-          user: registrationResult.user,
-          accessToken: registrationResult.accessToken,
-          businessCode: businessCode,
-          businessId: businessId
-        }
-      });
+      // Clear registration state - onboarding is complete
+      this.conversationStateService.clearState(phoneNumber);
 
-      this.logger.debug(`Merchant registration completed for ${phoneNumber}, starting product setup`);
+      this.logger.debug(`Merchant registration completed for ${phoneNumber}`);
 
+      // Return completion message with product addition instruction
       return {
-        message: this.onboardingMessagesService.getProductSetupStartMessage(businessName, businessCode),
-        completed: false,
-        nextStep: 'product_setup',
+        message: this.getMerchantCompletionMessage(businessName, ownerName, businessCode),
+        completed: true,
+        nextStep: 'completed',
         data: {
           user: registrationResult.user,
           accessToken: registrationResult.accessToken,
@@ -1830,6 +1828,28 @@ export class RegistrationHandlerService {
   }
 
   /**
+   * Get merchant completion message after business creation
+   */
+  private getMerchantCompletionMessage(businessName: string, ownerName: string, businessCode: string): string {
+    return `🎉 **Félicitations ! Votre entreprise a été créée avec succès !**\n\n` +
+      `✅ **Détails de votre entreprise :**\n` +
+      `🏢 **Nom :** ${businessName}\n` +
+      `👤 **Propriétaire :** ${ownerName}\n` +
+      `🔑 **Code entreprise :** ${businessCode}\n\n` +
+      `📦 **Ajouter des produits :**\n` +
+      `Vous pouvez ajouter des produits à tout moment avec la commande :\n` +
+      `\`ajouter produit [nom_produit]\`\n\n` +
+      `*Exemple :* \`ajouter produit Pain\`\n\n` +
+      `📋 **Prochaines étapes :**\n` +
+      `• Partagez le code ${businessCode} avec vos employés\n` +
+      `• Commencez à enregistrer vos ventes avec "vente"\n` +
+      `• Gérez votre stock avec "stock"\n` +
+      `• Consultez vos rapports avec "rapport"\n\n` +
+      `💡 Tapez "aide" à tout moment pour voir toutes les commandes disponibles.\n\n` +
+      `Bienvenue dans votre nouveau système de gestion ! 🚀`;
+  }
+
+  /**
    * Generate comprehensive completion summary for employees
    */
   private getEmployeeCompletionSummary(employeeName: string, businessName: string, roleDisplayName: string, role: 'seller' | 'manager'): string {
@@ -1981,7 +2001,7 @@ export class RegistrationHandlerService {
       `• Gestion des ventes et dépenses\n` +
       `• Rapports financiers détaillés\n` +
       `• Invitation d'employés avec codes\n\n` +
-      `✅ Tapez 'continuer', 'oui' ou '1' pour commencer\n` +
+      `✅ Tapez 'continuer' pour commencer\n` +
       `❌ Tapez 'stop' pour annuler`;
   }
 

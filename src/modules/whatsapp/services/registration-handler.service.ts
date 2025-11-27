@@ -1096,9 +1096,12 @@ export class RegistrationHandlerService {
     // Check if business name already exists (basic validation)
     const businessName = trimmedMessage;
 
-    // Store business name and ask for owner name
-    this.conversationStateService.updateState(phoneNumber, {
-      businessName: businessName
+    // Store business name and move to owner name step
+    // Use setRegistrationState to update both step and data
+    this.conversationStateService.setRegistrationState(phoneNumber, {
+      ...state,
+      businessName: businessName,
+      step: 'owner_name'
     });
 
     this.logger.debug(`Business name collected for ${phoneNumber}: ${businessName}`);

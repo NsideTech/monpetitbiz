@@ -405,7 +405,9 @@ export class RegistrationHandlerService {
     const businessName = trimmedMessage;
 
     // Store business name and move to owner name collection
+    // Preserve all existing state data
     this.conversationStateService.setRegistrationState(phoneNumber, {
+      ...state,
       businessName: businessName,
       step: 'merchant_owner_name'
     });
@@ -477,7 +479,9 @@ export class RegistrationHandlerService {
     }
 
     // Store owner name and move to confirmation
+    // Preserve all existing state data
     this.conversationStateService.setRegistrationState(phoneNumber, {
+      ...state,
       ownerName: ownerName,
       step: 'merchant_confirmation'
     });

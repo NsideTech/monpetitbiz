@@ -8,17 +8,15 @@ import {
   Logger,
   BadRequestException,
   UnauthorizedException,
-  RawBodyRequest,
   Req,
   Res,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiBody } from '@nestjs/swagger';
 import { TwilioConfigService } from '../../../config/twilio.config';
-import { TwilioMessageParser, ProcessedTwilioMessage } from '../services/twilio-message-parser.service.js';
+import { TwilioMessageParser, ProcessedTwilioMessage } from '../services/twilio-message-parser.service';
 import { WhatsappService } from '../whatsapp.service';
 import { TwilioWebhookPayloadDto } from '../dto/twilio-webhook.dto';
-import * as twilio from 'twilio';
 
 @ApiTags('Twilio WhatsApp')
 @Controller('whatsapp/twilio')

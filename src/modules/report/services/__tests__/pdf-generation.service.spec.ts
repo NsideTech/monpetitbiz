@@ -1,12 +1,25 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { PDFGenerationService } from '../pdf-generation.service';
-import { BalanceReport, ReportPeriod } from '../../dto/report.dto';
+import { BalanceReport } from '../../dto/report.dto';
 import { Business } from '../../../auth/entities/business.entity';
 
+// Define mocks before they're used
+const mockS3Send = jest.fn().mockResolvedValue({});
+const mockGetSignedUrl = jest.fn().mockResolvedValue('https://test-url.com/report.pdf?response-content-type=application%2Fpdf');
+
 // Mock AWS SDK
-jest.mock('@aws-sdk/client-s3');
-jest.mock('@aws-sdk/s3-request-presigner');
+jest.mock('@aws-sdk/client-s3', () => ({
+  S3Client: jest.fn().mockImplementation(() => ({
+    send: mockS3Send,
+  })),
+  PutObjectCommand: jest.fn(),
+  GetObjectCommand: jest.fn(),
+}));
+
+jest.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: jest.fn((...args) => mockGetSignedUrl(...args)),
+}));
 
 // Mock Puppeteer
 jest.mock('puppeteer', () => ({
@@ -93,22 +106,11 @@ describe('PDFGenerationService', () => {
         ],
       };
 
-      // Mock S3 upload
-      const mockS3Send = jest.fn().mockResolvedValue({});
-      const mockGetSignedUrl = jest.fn().mockResolvedValue('https://test-url.com/report.pdf');
-
-      // Mock the S3 client methods
-      jest.doMock('@aws-sdk/client-s3', () => ({
-        S3Client: jest.fn().mockImplementation(() => ({
-          send: mockS3Send,
-        })),
-        PutObjectCommand: jest.fn(),
-        GetObjectCommand: jest.fn(),
-      }));
-
-      jest.doMock('@aws-sdk/s3-request-presigner', () => ({
-        getSignedUrl: mockGetSignedUrl,
-      }));
+      // Mock S3 upload - mocks are already set up at the top of the file
+      // Reset mocks to ensure clean state
+      mockS3Send.mockClear();
+      mockGetSignedUrl.mockClear();
+      mockGetSignedUrl.mockResolvedValue('https://test-url.com/report.pdf?response-content-type=application%2Fpdf');
 
       const result = await service.generatePDFReport({
         businessId: '123e4567-e89b-12d3-a456-426614174000',

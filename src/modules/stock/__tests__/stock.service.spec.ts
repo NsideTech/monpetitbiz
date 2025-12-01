@@ -108,6 +108,7 @@ describe('StockService', () => {
         id: 'stock-id',
         businessId,
         product: 'pain',
+        productCode: 'PAIN',
         quantity: 20,
         updatedAt: new Date(),
       };
@@ -131,16 +132,23 @@ describe('StockService', () => {
       const product = 'Pain';
       const quantity = 30;
 
-      mockStockItemRepository.findOne.mockResolvedValue(null);
+      // Mock: first call for finding existing stock (returns null)
+      // Second call for checking product code uniqueness (returns null - code is unique)
+      mockStockItemRepository.findOne
+        .mockResolvedValueOnce(null) // No existing stock item
+        .mockResolvedValueOnce(null); // Product code 'PAIN' is unique
+      
       mockStockItemRepository.create.mockReturnValue({
         businessId,
         product: 'pain',
+        productCode: 'PAIN',
         quantity: 30,
       });
       mockStockItemRepository.save.mockResolvedValue({
         id: 'new-stock-id',
         businessId,
         product: 'pain',
+        productCode: 'PAIN',
         quantity: 30,
       });
 
@@ -150,6 +158,7 @@ describe('StockService', () => {
       expect(mockStockItemRepository.create).toHaveBeenCalledWith({
         businessId,
         product: 'pain',
+        productCode: 'PAIN',
         quantity: 30,
       });
     });

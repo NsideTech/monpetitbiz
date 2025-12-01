@@ -138,6 +138,7 @@ WHATSAPP-*.md
 .twilio-message-count.json
 *.tmp
 *.temp
+.jest-localstorage.json
 
 # Backup files
 *.bak

@@ -1,13 +1,40 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UnitConversionService } from '../unit-conversion.service';
+import { UnitErrorMessagesService, UnitErrorType } from '../unit-error-messages.service';
 import { ProductUnit } from '../../entities/product-unit.entity';
 
 describe('UnitConversionService Integration', () => {
   let service: UnitConversionService;
+  
+  const mockUnitErrorMessagesService = {
+    getErrorMessage: jest.fn((type, params = {}) => {
+      // Return contextual error messages based on type
+      if (type === UnitErrorType.UNKNOWN_UNIT || type === 'UNKNOWN_UNIT') {
+        const unit = params.unit || '[unité]';
+        const productName = params.productName || params.product || '[produit]';
+        return `Unité '${unit}' inconnue pour ${productName}`;
+      }
+      if (type === UnitErrorType.VALIDATION_ERROR || type === 'VALIDATION_ERROR') {
+        // Check if it's a format error
+        if (params.suggestions && Array.isArray(params.suggestions) && 
+            params.suggestions.some((s: string) => s && s.includes('Format invalide'))) {
+          return 'Format invalide';
+        }
+        return 'Error message';
+      }
+      return 'Error message';
+    }),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [UnitConversionService],
+      providers: [
+        UnitConversionService,
+        {
+          provide: UnitErrorMessagesService,
+          useValue: mockUnitErrorMessagesService,
+        },
+      ],
     }).compile();
 
     service = module.get<UnitConversionService>(UnitConversionService);

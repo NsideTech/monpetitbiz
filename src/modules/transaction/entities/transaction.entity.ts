@@ -21,8 +21,8 @@ export class Transaction {
   userId: string;
 
   @Column({ 
-    type: 'enum', 
-    enum: TransactionType,
+    type: 'varchar', 
+    length: 20,
     nullable: false
   })
   type: TransactionType;

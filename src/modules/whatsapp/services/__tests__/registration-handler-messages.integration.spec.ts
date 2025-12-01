@@ -5,6 +5,7 @@ import { ConversationStateService } from '../conversation-state.service';
 import { AuthService } from '../../../auth/auth.service';
 import { NLPService } from '../nlp.service';
 import { ConflictResolutionService } from '../conflict-resolution.service';
+import { StockService } from '../../../stock/stock.service';
 
 describe('RegistrationHandlerService - Messages Integration', () => {
     let registrationHandler: RegistrationHandlerService;
@@ -38,6 +39,10 @@ describe('RegistrationHandlerService - Messages Integration', () => {
             processEmployeeChoice: jest.fn(),
         };
 
+        const mockStockService = {
+            setUnitPrice: jest.fn().mockResolvedValue(undefined),
+        };
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 RegistrationHandlerService,
@@ -57,6 +62,10 @@ describe('RegistrationHandlerService - Messages Integration', () => {
                 {
                     provide: ConflictResolutionService,
                     useValue: mockConflictResolutionService,
+                },
+                {
+                    provide: StockService,
+                    useValue: mockStockService,
                 },
             ],
         }).compile();
@@ -219,19 +228,13 @@ describe('RegistrationHandlerService - Messages Integration', () => {
                 businessName: null
             } as any);
 
-            // Spy on the message service
-            const getSuccessConfirmationMessageSpy = jest.spyOn(onboardingMessages, 'getSuccessConfirmationMessage');
-
             const result = await registrationHandler.handleRegistrationMessage(phoneNumber, message);
 
-            expect(getSuccessConfirmationMessageSpy).toHaveBeenCalledWith({
-                businessName: 'Test Business',
-                ownerName: 'Test Owner',
-                businessCode: 'TEST01',
-                phoneNumber: phoneNumber,
-                country: 'SN'
-            });
-
+            // NOTE: The merchant confirmation flow uses getMerchantCompletionMessage() (private method)
+            // instead of OnboardingMessagesService.getSuccessConfirmationMessage().
+            // We verify the message content instead, which is what matters for the user experience.
+            
+            // Verify message content contains all required information
             expect(result.message).toContain('🎉');
             expect(result.message).toContain('Félicitations');
             expect(result.message).toContain('Test Business');

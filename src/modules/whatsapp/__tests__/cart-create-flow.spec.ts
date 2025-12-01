@@ -25,10 +25,8 @@ describe('Cart Create Flow', () => {
   describe('Command Parsing - New Flow', () => {
     it('should parse cart create commands correctly', () => {
       const testCases = [
-        'panier',
         'nouveau panier',
         'créer panier',
-        'cart',
         'new cart',
         'create cart'
       ];
@@ -37,6 +35,15 @@ describe('Cart Create Flow', () => {
         const result = commandParser.parseMessage(input);
         expect(result.type).toBe('cart_create');
         expect(result.confidence).toBeGreaterThan(0.8);
+      });
+    });
+    
+    it('should parse cart view commands correctly', () => {
+      const testCases = ['panier', 'cart'];
+
+      testCases.forEach(input => {
+        const result = commandParser.parseMessage(input);
+        expect(result.type).toBe('cart_view');
       });
     });
 
@@ -164,7 +171,7 @@ describe('Cart Create Flow', () => {
 
     it('should handle complete cart flow', async () => {
       // 1. Create cart
-      let command = commandParser.parseMessage('panier');
+      let command = commandParser.parseMessage('nouveau panier');
       expect(command.type).toBe('cart_create');
       
       let result = await cartCreateHandler.handleCartCreate(phoneNumber, command, userContext);

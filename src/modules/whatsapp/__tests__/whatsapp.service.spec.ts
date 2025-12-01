@@ -5,6 +5,7 @@ import { WhatsappService } from '../whatsapp.service';
 import { WebhookSecurityService } from '../services/webhook-security.service';
 import { MessageParserService } from '../services/message-parser.service';
 import { MessageQueueService } from '../services/message-queue.service';
+import { DualProviderService } from '../services/dual-provider.service';
 import { WebhookPayload } from '../interfaces/webhook.interface';
 
 describe('WhatsappService', () => {
@@ -25,6 +26,11 @@ describe('WhatsappService', () => {
     }),
   };
 
+  const mockDualProviderService = {
+    getCurrentProvider: jest.fn().mockReturnValue('meta'),
+    isProviderAvailable: jest.fn().mockReturnValue(true),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -35,6 +41,10 @@ describe('WhatsappService', () => {
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: DualProviderService,
+          useValue: mockDualProviderService,
         },
       ],
     }).compile();
@@ -47,7 +57,11 @@ describe('WhatsappService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-    messageQueue.clearQueue();
+    try {
+      messageQueue?.clearQueue();
+    } catch (error) {
+      // Ignore errors during cleanup
+    }
   });
 
   describe('verifyWebhook', () => {

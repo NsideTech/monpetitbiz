@@ -92,6 +92,9 @@ export class CommandParserService {
       // Format: vente pain 500 (produit + montant avec CFA explicite)
       /^(?:vente|sale)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)$/i,
 
+      // Format: vente 1500,50 huile (montant + produit)
+      /^(?:vente|sale)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s+(.+)$/i,
+
       // Format: j'ai vendu du pain à 2000 (langage naturel)
       /^j'ai vendu\s+(?:du\s+|de\s+|le\s+|la\s+|les\s+)?(.+?)\s+(?:à|pour|a)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
 
@@ -210,29 +213,39 @@ export class CommandParserService {
       // Format: supprimer produit [produit] (obligatoire: "produit" doit être présent)
       /^(?:supprimer|delete|effacer|remove)\s+produit\s+(\w+)$/i,
       /^produit\s+(?:supprimer|delete|effacer|remove)\s+(\w+)$/i,
+      // Format: supprimer [produit], delete [produit], effacer [produit], remove [produit] (without "produit" keyword)
+      // Note: This is checked before cartRemove to prioritize product deletion
+      /^(?:supprimer|delete|effacer|remove)\s+(\w+)$/i,
     ],
     confirmDelete: [
       // Format: confirmer, oui, yes
       /^(?:confirmer|confirm|oui|yes|ok)$/i,
     ],
     cartCreate: [
-      // Format: panier, nouveau panier, créer panier, cart
-      /^(?:panier|nouveau panier|créer panier|cart|new cart|create cart)$/i,
+      // Format: nouveau panier, créer panier, new cart, create cart
+      // Note: "panier" and "cart" alone are handled by cartView
+      /^(?:nouveau|nouvelle|new)\s+panier$/i,
+      /^(?:créer|creer|create)\s+panier$/i,
+      /^(?:new|create)\s+cart$/i,
     ],
     cartAdd: [
+      // Format: ajouter [produit] [quantité], add [produit] [quantité]
+      /^(?:ajouter|ajout|add)\s+(\w+)\s+(\d+(?:[.,]\d+)?)$/i,
       // Format: [produit] [quantité] (dans le contexte d'un panier actif)
       /^(\w+)\s+(\d+(?:[.,]\d+)?)$/i,
       // Format: + [produit] [quantité] (raccourci)
       /^\+\s+(\w+)\s+(\d+(?:[.,]\d+)?)$/i,
     ],
     cartRemove: [
-      // Format: retirer [produit], remove [produit], enlever [produit]
-      /^(?:retirer|remove|enlever|supprimer)\s+(\w+)$/i,
+      // Format: retirer [produit], enlever [produit] (remove/supprimer are handled by productDelete)
+      /^(?:retirer|enlever)\s+(\w+)$/i,
       // Format: - [produit]
       /^-\s+(\w+)$/i,
     ],
     cartView: [
-      // Format: voir, contenu, show, view
+      // Format: panier, cart (view current cart)
+      /^(?:panier|cart)$/i,
+      // Format: voir, contenu, show, view, voir panier, show cart
       /^(?:voir|contenu|show|view|voir panier|show cart)$/i,
     ],
     cartFinalize: [
@@ -346,6 +359,12 @@ export class CommandParserService {
     // Try stock query BEFORE sale to avoid false positives (e.g., "produit b9000" should be stock query, not sale)
     result = this.tryParseStockQuery(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    // Cart add with explicit "ajouter/add" should be checked before sale to avoid conflicts
+    if (/^(?:ajouter|ajout|add)\s+/i.test(cleanText)) {
+      result = this.tryParseCartAdd(cleanText, patterns);
+      if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+    }
 
     // Try basic commands
     result = this.tryParseSale(cleanText, patterns);

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { UnitConversionService } from '../unit-conversion.service';
+import { UnitErrorMessagesService } from '../unit-error-messages.service';
 import { ProductUnit } from '../../entities/product-unit.entity';
 
 describe('UnitConversionService', () => {
@@ -8,8 +9,18 @@ describe('UnitConversionService', () => {
   let mockProductUnit: ProductUnit;
 
   beforeEach(async () => {
+    const mockUnitErrorMessagesService = {
+      getErrorMessage: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [UnitConversionService],
+      providers: [
+        UnitConversionService,
+        {
+          provide: UnitErrorMessagesService,
+          useValue: mockUnitErrorMessagesService,
+        },
+      ],
     }).compile();
 
     service = module.get<UnitConversionService>(UnitConversionService);

@@ -52,7 +52,7 @@ describe('PhoneValidationService', () => {
       const result = await service.extractCountryFromWhatsApp('whatsapp:+226701234567');
       
       expect(result.isValid).toBe(true);
-      expect(result.country).toBe('SN');
+      expect(result.country).toBe('BF'); // +226 is Burkina Faso country code
       expect(result.formattedNumber).toBe('+226701234567');
     });
 

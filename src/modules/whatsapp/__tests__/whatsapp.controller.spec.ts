@@ -6,6 +6,8 @@ import { WhatsappService } from '../whatsapp.service';
 import { WebhookSecurityService } from '../services/webhook-security.service';
 import { MessageParserService } from '../services/message-parser.service';
 import { MessageQueueService } from '../services/message-queue.service';
+import { BotController } from '../bot.controller';
+import { DualProviderService } from '../services/dual-provider.service';
 
 describe('WhatsappController', () => {
   let controller: WhatsappController;
@@ -25,6 +27,19 @@ describe('WhatsappController', () => {
   };
 
   beforeEach(async () => {
+    const mockDualProviderService = {
+      // Add any methods that might be called during tests
+    };
+
+    const mockBotController = {
+      processMessage: jest.fn(),
+      healthCheck: jest.fn().mockResolvedValue({
+        status: 'healthy',
+        services: {},
+        timestamp: new Date().toISOString(),
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WhatsappController],
       providers: [
@@ -35,6 +50,14 @@ describe('WhatsappController', () => {
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: DualProviderService,
+          useValue: mockDualProviderService,
+        },
+        {
+          provide: BotController,
+          useValue: mockBotController,
         },
       ],
     }).compile();

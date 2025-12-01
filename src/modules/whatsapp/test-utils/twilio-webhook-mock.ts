@@ -10,12 +10,24 @@ export class TwilioWebhookMock {
   /**
    * Generate a basic incoming message webhook payload
    */
+  /**
+   * Generate a valid Twilio SID (34 characters: prefix + 32 hex characters)
+   */
+  static generateTwilioSid(prefix: string): string {
+    const hexChars = '0123456789abcdef';
+    let sid = prefix;
+    for (let i = 0; i < 32; i++) {
+      sid += hexChars[Math.floor(Math.random() * hexChars.length)];
+    }
+    return sid;
+  }
+
   static incomingMessage(overrides: Partial<TwilioWebhookPayload> = {}): TwilioWebhookPayload {
     return {
-      MessageSid: 'SM' + Math.random().toString(36).substr(2, 32),
-      AccountSid: 'AC' + Math.random().toString(36).substr(2, 32),
+      MessageSid: this.generateTwilioSid('SM'),
+      AccountSid: this.generateTwilioSid('AC'),
       From: 'whatsapp:+1234567890',
-      To: 'whatsapp:+0987654321',
+      To: 'whatsapp:+14155238886', // Valid Twilio WhatsApp number
       Body: 'Hello, this is a test message',
       ProfileName: 'Test User',
       WaId: '1234567890',
@@ -30,11 +42,11 @@ export class TwilioWebhookMock {
    */
   static incomingMediaMessage(overrides: Partial<TwilioWebhookPayload> = {}): TwilioWebhookPayload {
     return {
-      MessageSid: 'SM' + Math.random().toString(36).substr(2, 32),
-      AccountSid: 'AC' + Math.random().toString(36).substr(2, 32),
+      MessageSid: this.generateTwilioSid('SM'),
+      AccountSid: this.generateTwilioSid('AC'),
       From: 'whatsapp:+1234567890',
-      To: 'whatsapp:+0987654321',
-      Body: '',
+      To: 'whatsapp:+14155238886', // Valid Twilio WhatsApp number
+      Body: '', // Empty body is allowed for media-only messages
       ProfileName: 'Test User',
       WaId: '1234567890',
       SmsStatus: 'received',
@@ -50,11 +62,12 @@ export class TwilioWebhookMock {
    */
   static deliveryStatus(status: 'sent' | 'delivered' | 'failed' | 'undelivered', overrides: Partial<TwilioWebhookPayload> = {}): TwilioWebhookPayload {
     const payload: TwilioWebhookPayload = {
-      MessageSid: 'SM' + Math.random().toString(36).substr(2, 32),
-      AccountSid: 'AC' + Math.random().toString(36).substr(2, 32),
-      From: 'whatsapp:+0987654321',
-      To: 'whatsapp:+1234567890',
-      Body: '',
+      MessageSid: this.generateTwilioSid('SM'),
+      AccountSid: this.generateTwilioSid('AC'),
+      From: 'whatsapp:+14155238886', // Valid Twilio WhatsApp number format
+      To: 'whatsapp:+1234567890', // Valid phone number format
+      // Body is optional for delivery status webhooks (not required)
+      Body: undefined,
       SmsStatus: status,
       ...overrides,
     };
@@ -67,10 +80,10 @@ export class TwilioWebhookMock {
    */
   static businessCommand(command: string, overrides: Partial<TwilioWebhookPayload> = {}): TwilioWebhookPayload {
     return {
-      MessageSid: 'SM' + Math.random().toString(36).substr(2, 32),
-      AccountSid: 'AC' + Math.random().toString(36).substr(2, 32),
+      MessageSid: this.generateTwilioSid('SM'),
+      AccountSid: this.generateTwilioSid('AC'),
       From: 'whatsapp:+1234567890',
-      To: 'whatsapp:+0987654321',
+      To: 'whatsapp:+14155238886', // Valid Twilio WhatsApp number
       Body: command,
       ProfileName: 'Business User',
       WaId: '1234567890',
@@ -91,8 +104,8 @@ export class TwilioWebhookMock {
     };
 
     return {
-      MessageSid: 'SM' + Math.random().toString(36).substr(2, 32),
-      AccountSid: 'AC' + Math.random().toString(36).substr(2, 32),
+      MessageSid: this.generateTwilioSid('SM'),
+      AccountSid: this.generateTwilioSid('AC'),
       From: 'whatsapp:+1234567890',
       To: 'whatsapp:+0987654321',
       Body: messages[step],

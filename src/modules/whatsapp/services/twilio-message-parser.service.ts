@@ -111,9 +111,14 @@ export class TwilioMessageParser {
       errors.push('MessageSid must be a valid Twilio SID format');
     }
 
-    // Body validation for received messages
-    if (payload.SmsStatus === 'received' && !payload.Body) {
-      errors.push('Body is required for received messages');
+    // Body validation for received messages (allow empty body for media-only messages)
+    // Body can be empty string for media messages, but must exist for text messages
+    if (payload.SmsStatus === 'received') {
+      const hasMedia = payload.NumMedia && payload.NumMedia !== '0' && parseInt(payload.NumMedia, 10) > 0;
+      // Only require Body if there's no media
+      if (!hasMedia && (payload.Body === undefined || payload.Body === null || (typeof payload.Body === 'string' && payload.Body.trim() === ''))) {
+        errors.push('Body is required for received messages without media');
+      }
     }
 
     if (errors.length > 0) {

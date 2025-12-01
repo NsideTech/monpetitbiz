@@ -101,7 +101,8 @@ describe('OnboardingMessagesService', () => {
 
       expect(message).toContain('Limite d\'essais atteinte');
       expect(message).toContain('3/3');
-      expect(message).toContain('créer une nouvelle entreprise');
+      // The message says "créer entreprise" not "créer une nouvelle entreprise"
+      expect(message).toMatch(/créer.*entreprise/);
     });
 
     it('should generate conflict error for existing owner', () => {

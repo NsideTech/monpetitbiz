@@ -1292,6 +1292,29 @@ export class BotController {
 
           await this.sendSuccessMessage(phoneNumber, successMessage);
 
+          // Send welcome message to the new administrator
+          const welcomeMessage = `🎉 **Bienvenue dans MonPetitBiz !**\n\n` +
+            `Vous avez été ajouté comme administrateur de l'entreprise **${result.user.business.name}**.\n\n` +
+            `✅ **Vous pouvez maintenant :**\n` +
+            `• Gérer les produits et le stock\n` +
+            `• Enregistrer des ventes et dépenses\n` +
+            `• Consulter les rapports et bilans\n` +
+            `• Ajouter d'autres administrateurs\n` +
+            `• Accéder à toutes les fonctionnalités\n\n` +
+            `💡 **Pour commencer, envoyez simplement "aide" pour voir toutes les commandes disponibles.**\n\n` +
+            `Bienvenue dans l'équipe ! 🚀`;
+
+          try {
+            await this.twilioWhatsAppService.sendMessage(
+              command.newOwnerPhoneNumber,
+              welcomeMessage
+            );
+            this.logger.log(`Welcome message sent to new administrator: ${command.newOwnerPhoneNumber}`);
+          } catch (error) {
+            this.logger.error(`Failed to send welcome message to ${command.newOwnerPhoneNumber}:`, error);
+            // Don't fail the whole operation if welcome message fails
+          }
+
           return {
             success: true,
             message: successMessage,

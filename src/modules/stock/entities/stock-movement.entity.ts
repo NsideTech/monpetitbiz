@@ -26,8 +26,8 @@ export class StockMovement {
 
   @Column({ 
     name: 'movement_type',
-    type: 'enum', 
-    enum: MovementType,
+    type: 'varchar', 
+    length: 20,
     nullable: false
   })
   movementType: MovementType;

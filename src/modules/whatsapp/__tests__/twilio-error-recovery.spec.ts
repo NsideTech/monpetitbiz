@@ -4,6 +4,7 @@ import { TwilioErrorHandlerService } from '../services/twilio-error-handler.serv
 import { TwilioLoggerService } from '../services/twilio-logger.service';
 import { TwilioWhatsAppService } from '../services/twilio-whatsapp.service';
 import { ConfigService } from '@nestjs/config';
+import { TwilioConfigService } from '../../../config/twilio.config';
 
 describe('Twilio Error Recovery Tests', () => {
   let errorHandler: TwilioErrorHandlerService;
@@ -15,6 +16,20 @@ describe('Twilio Error Recovery Tests', () => {
       providers: [
         TwilioErrorHandlerService,
         TwilioLoggerService,
+        {
+          provide: TwilioConfigService,
+          useValue: {
+            getTwilioConfig: jest.fn().mockReturnValue({
+              accountSid: 'AC' + '1'.repeat(32),
+              authToken: '2'.repeat(32),
+              whatsappNumber: 'whatsapp:+14155238886',
+              webhookSecret: undefined,
+              environment: 'sandbox',
+              retryAttempts: 3,
+              timeout: 30000,
+            }),
+          },
+        },
         {
           provide: TwilioWhatsAppService,
           useValue: {

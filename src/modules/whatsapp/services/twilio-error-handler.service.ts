@@ -62,8 +62,8 @@ export class TwilioErrorHandlerService {
       return ErrorCategory.RATE_LIMITING;
     }
 
-    // Validation errors
-    if ([21211, 21614, 21408, 21610, 21612].includes(errorCode)) {
+    // Validation errors (including delivery failures, media errors, and template errors which shouldn't be retried)
+    if ([21211, 21614, 21408, 21610, 21612, 21623, 30008, 63016].includes(errorCode)) {
       return ErrorCategory.VALIDATION;
     }
 

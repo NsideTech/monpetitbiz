@@ -26,8 +26,8 @@ export class User {
   businessId: string;
 
   @Column({ 
-    type: 'enum', 
-    enum: UserRole,
+    type: 'varchar', 
+    length: 20,
     nullable: false
   })
   role: UserRole;
@@ -41,7 +41,7 @@ export class User {
   @Column({ name: 'invited_by', type: 'uuid', nullable: true })
   invitedBy: string;
 
-  @Column({ name: 'joined_at', type: 'timestamp', nullable: true })
+  @Column({ name: 'joined_at', type: 'datetime', nullable: true })
   joinedAt: Date;
 
   @CreateDateColumn({ name: 'created_at' })

@@ -1396,21 +1396,34 @@ export class CommandParserService {
   private extractProduct(text: string): string | null {
     if (!text) return null;
 
+    const trimmedText = text.trim();
+    if (!trimmedText) return null;
+
     // First try to match known products
-    const productMatch = text.match(this.frenchPatterns.products);
+    const productMatch = trimmedText.match(this.frenchPatterns.products);
     if (productMatch) {
       return productMatch[0].toLowerCase();
     }
 
-    // If no known product found, try to extract a reasonable product name
-    // Remove common words and amounts
-    const cleanedText = text
-      .replace(/\d+(?:[.,]\d+)?/g, '') // Remove numbers
+    // If the text is already a clean product name (no common words, reasonable length),
+    // return it as-is. This preserves product names with numbers like "b9000", "produit123", etc.
+    const hasCommonWords = /\b(?:cfa|fcfa|f|francs?|pour|avec|sans|de|du|la|le|les|un|une|des)\b/gi.test(trimmedText);
+    const isStandaloneAmount = /^\d+(?:[.,]\d+)?\s*(?:cfa|fcfa|f)?$/i.test(trimmedText);
+    
+    if (!hasCommonWords && !isStandaloneAmount && trimmedText.length > 0 && trimmedText.length < 50) {
+      return trimmedText.toLowerCase();
+    }
+
+    // If the text contains common words or needs cleaning, try to extract the product name
+    // Remove standalone amounts (numbers followed by CFA/francs or at the end)
+    let cleanedText = trimmedText
+      .replace(/\b\d+(?:[.,]\d+)?\s*(?:cfa|fcfa|f|francs?)\b/gi, '') // Remove amounts with currency
       .replace(/\b(?:cfa|fcfa|f|francs?|pour|avec|sans|de|du|la|le|les|un|une|des)\b/gi, '') // Remove common words
       .trim();
 
+    // If after cleaning we still have a reasonable product name, use it
     if (cleanedText.length > 0 && cleanedText.length < 50) {
-      return cleanedText;
+      return cleanedText.toLowerCase();
     }
 
     return null;

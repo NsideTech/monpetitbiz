@@ -7,6 +7,7 @@ import { Transaction } from '../modules/transaction/entities/transaction.entity'
 import { StockItem } from '../modules/stock/entities/stock-item.entity';
 import { ProductUnit } from '../modules/stock/entities/product-unit.entity';
 import { StockMovement } from '../modules/stock/entities/stock-movement.entity';
+import { ChatMessage } from '../modules/chat/entities/chat-message.entity';
 
 // Helper function to parse DATABASE_URL
 function parseDatabaseUrl(url?: string): {
@@ -54,7 +55,7 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
       password: configService.get<string>('DATABASE_PASSWORD') || 'password',
       database: configService.get<string>('DATABASE_NAME') || 'monpetitbiz',
     }),
-    entities: [Business, User, OtpSession, Transaction, StockItem, ProductUnit, StockMovement],
+    entities: [Business, User, OtpSession, Transaction, StockItem, ProductUnit, StockMovement, ChatMessage],
     migrations: [__dirname + '/../migrations/*{.ts,.js}'],
     synchronize: false, // Always use migrations for schema changes
     logging: configService.get('NODE_ENV') === 'development',

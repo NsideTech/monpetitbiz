@@ -8,7 +8,7 @@ export class OtpSession {
   @Column({ type: 'varchar', length: 6, nullable: false })
   code: string;
 
-  @Column({ name: 'expires_at', type: 'datetime', nullable: false })
+  @Column({ name: 'expires_at', type: 'timestamptz', nullable: false })
   expiresAt: Date;
 
   @Column({ type: 'integer', default: 0 })

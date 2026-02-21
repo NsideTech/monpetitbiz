@@ -78,6 +78,8 @@ async function bootstrap() {
     }));
 
     // Enable CORS for web dashboard and Vercel
+    // FRONTEND_URL should point to the admin portal URL (e.g., https://admin.monpetitbiz.com)
+    // In development, all origins are allowed for easier testing
     app.enableCors({
         origin: process.env.NODE_ENV === 'production'
             ? [
@@ -150,7 +152,7 @@ async function bootstrap() {
         .addTag('WhatsApp', 'WhatsApp webhook and messaging')
         .addTag('Health', 'System health and monitoring')
         .addTag('Dashboard', 'Web dashboard API (read-only)')
-        .addServer(useHttps ? 'https://localhost:3000' : 'http://localhost:3000', 'Development server')
+        .addServer(useHttps ? 'https://localhost:9000' : 'http://localhost:9000', 'Development server')
         .addServer('https://api.monpetitbiz.com', 'Production server')
         .build();
 
@@ -176,7 +178,7 @@ async function bootstrap() {
     });
 
     const configService = app.get(ConfigService);
-    const port = configService.get('PORT', 3000);
+    const port = configService.get('PORT', 9000);
     const protocol = useHttps ? 'https' : 'http';
 
     await app.listen(port);

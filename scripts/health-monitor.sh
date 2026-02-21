@@ -2,7 +2,7 @@
 
 # Health Monitor Script for WhatsApp Bot
 # This script performs basic health checks and can be used with cron for automated monitoring
-# For comprehensive monitoring setup, see docs/twilio-monitoring-alerting-guide.md
+# For comprehensive monitoring setup, see docs/twilio-guide.md
 
 set -e
 

@@ -49,6 +49,26 @@ export class ProductNormalizerService {
     }
 
     /**
+     * Nettoie le nom du produit en supprimant les guillemets français « » et autres caractères indésirables
+     */
+    cleanProductName(product: string): string {
+        if (!product || typeof product !== 'string') {
+            return '';
+        }
+
+        let cleaned = product.trim();
+
+        // Supprimer les guillemets français « » au début et à la fin
+        cleaned = cleaned.replace(/^«\s*/, '').replace(/\s*»$/, '');
+        
+        // Supprimer aussi les guillemets anglais " " au début et à la fin si présents
+        cleaned = cleaned.replace(/^"\s*/, '').replace(/\s*"$/, '');
+        cleaned = cleaned.replace(/^'\s*/, '').replace(/\s*'$/, '');
+
+        return cleaned.trim();
+    }
+
+    /**
      * Normalise un nom de produit en minuscules et supprime les espaces superflus
      */
     normalize(product: string): string {
@@ -56,7 +76,10 @@ export class ProductNormalizerService {
             return '';
         }
 
-        return product.trim().toLowerCase().replace(/\s+/g, ' ');
+        // Nettoyer d'abord les guillemets français
+        const cleaned = this.cleanProductName(product);
+        
+        return cleaned.toLowerCase().replace(/\s+/g, ' ');
     }
 
     /**

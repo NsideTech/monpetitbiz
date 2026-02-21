@@ -97,7 +97,8 @@ describe('AuthService', () => {
 
       const result = await service.sendOTP(phoneNumber);
 
-      expect(result).toBe('OTP sent successfully');
+      expect(result.message).toBe('OTP sent successfully');
+      expect(result.code).toMatch(/^\d{6}$/);
       expect(mockOtpSessionRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           phoneNumber: '+226123456789',

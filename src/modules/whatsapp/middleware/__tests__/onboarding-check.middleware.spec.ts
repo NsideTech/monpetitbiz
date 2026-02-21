@@ -16,6 +16,8 @@ describe('OnboardingCheckMiddleware', () => {
     timezone: 'Africa/Dakar',
     ownerName: 'Test Owner',
     country: 'SEN',
+    isActive: true,
+    deletedAt: null,
     users: [],
     transactions: [],
     stockItems: [],

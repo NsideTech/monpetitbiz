@@ -10,12 +10,14 @@ import { StockItem } from '../stock/entities/stock-item.entity';
 import { Business } from '../auth/entities/business.entity';
 import { User } from '../auth/entities/user.entity';
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Transaction, StockItem, Business, User]),
     forwardRef(() => WhatsappModule),
     ConfigModule,
+    AuthModule,
   ],
   providers: [ReportService, ReportSchedulerService, PDFGenerationService],
   controllers: [ReportController],

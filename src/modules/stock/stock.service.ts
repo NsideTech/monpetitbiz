@@ -50,7 +50,13 @@ export class StockService {
       throw new BadRequestException('Product name is required');
     }
 
-    const normalizedProduct = this.productNormalizer.normalize(product);
+    // Nettoyer le nom du produit (supprimer les guillemets français « »)
+    const cleanedProduct = this.productNormalizer.cleanProductName(product);
+    if (!cleanedProduct || cleanedProduct.trim().length === 0) {
+      throw new BadRequestException('Product name is required');
+    }
+
+    const normalizedProduct = this.productNormalizer.normalize(cleanedProduct);
     
     // Get all existing products for this business
     const existingStockItems = await this.stockItemRepository.find({
@@ -424,7 +430,13 @@ export class StockService {
       throw new BadRequestException('Product name is required');
     }
 
-    const normalizedProduct = product.trim().toLowerCase();
+    // Nettoyer le nom du produit (supprimer les guillemets français « »)
+    const cleanedProduct = this.productNormalizer.cleanProductName(product);
+    if (!cleanedProduct || cleanedProduct.trim().length === 0) {
+      throw new BadRequestException('Product name is required');
+    }
+
+    const normalizedProduct = this.productNormalizer.normalize(cleanedProduct);
 
     // Find existing stock item or create new one
     let stockItem = await this.stockItemRepository.findOne({
@@ -792,7 +804,13 @@ export class StockService {
       throw new BadRequestException('Product name is required');
     }
 
-    const normalizedProduct = product.trim().toLowerCase();
+    // Nettoyer le nom du produit (supprimer les guillemets français « »)
+    const cleanedProduct = this.productNormalizer.cleanProductName(product);
+    if (!cleanedProduct || cleanedProduct.trim().length === 0) {
+      throw new BadRequestException('Product name is required');
+    }
+
+    const normalizedProduct = this.productNormalizer.normalize(cleanedProduct);
 
     // Get product unit configuration
     const productConfig = await this.unitManagementService.getProductUnits(businessId, normalizedProduct);

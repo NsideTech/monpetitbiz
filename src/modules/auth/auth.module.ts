@@ -5,18 +5,25 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { AdminBusinessController } from './admin-business.controller';
+import { AdminBusinessService } from './admin-business.service';
 import { EmployeeService } from './services/employee.service';
 import { PhoneValidationService } from './services/phone-validation.service';
 import { User } from './entities/user.entity';
 import { Business } from './entities/business.entity';
 import { OtpSession } from './entities/otp-session.entity';
 import { EmployeeCode } from './entities/employee-code.entity';
+import { Transaction } from '../transaction/entities/transaction.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { PermissionGuard } from './guards/permission.guard';
+import { ServiceTokenGuard } from './guards/service-token.guard';
+import { StockModule } from '../stock/stock.module';
+import { StockItem } from '../stock/entities/stock-item.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Business, OtpSession, EmployeeCode]),
+    TypeOrmModule.forFeature([User, Business, OtpSession, EmployeeCode, Transaction, StockItem]),
+    StockModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -28,8 +35,8 @@ import { PermissionGuard } from './guards/permission.guard';
       inject: [ConfigService],
     }),
   ],
-  providers: [AuthService, EmployeeService, PhoneValidationService, JwtAuthGuard, PermissionGuard],
-  controllers: [AuthController],
-  exports: [AuthService, EmployeeService, PhoneValidationService, JwtAuthGuard, PermissionGuard],
+  providers: [AuthService, AdminBusinessService, EmployeeService, PhoneValidationService, JwtAuthGuard, PermissionGuard, ServiceTokenGuard],
+  controllers: [AuthController, AdminBusinessController],
+  exports: [AuthService, EmployeeService, PhoneValidationService, JwtAuthGuard, PermissionGuard, ServiceTokenGuard],
 })
 export class AuthModule {}

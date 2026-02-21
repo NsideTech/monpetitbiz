@@ -7,6 +7,9 @@ import { StockItem } from '../../stock/entities/stock-item.entity';
 import { Business } from '../../auth/entities/business.entity';
 import { ReportService } from '../../report/report.service';
 import { StockService } from '../../stock/stock.service';
+import { ProductNormalizerService } from '../../stock/services/product-normalizer.service';
+import { TransactionService } from '../../transaction/transaction.service';
+import { StockMovementService } from '../../stock/services/stock-movement.service';
 
 describe('DashboardService', () => {
   let service: DashboardService;
@@ -36,6 +39,22 @@ describe('DashboardService', () => {
 
   const mockStockService = {
     getStockWarnings: jest.fn(),
+    updateStock: jest.fn(),
+  };
+
+  const mockProductNormalizer = {
+    normalize: jest.fn(),
+    findBestMatch: jest.fn(),
+  };
+
+  const mockTransactionService = {
+    createTransaction: jest.fn(),
+    findAll: jest.fn(),
+  };
+
+  const mockStockMovementService = {
+    getMovements: jest.fn(),
+    recordMovement: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -61,6 +80,18 @@ describe('DashboardService', () => {
         {
           provide: StockService,
           useValue: mockStockService,
+        },
+        {
+          provide: ProductNormalizerService,
+          useValue: mockProductNormalizer,
+        },
+        {
+          provide: TransactionService,
+          useValue: mockTransactionService,
+        },
+        {
+          provide: StockMovementService,
+          useValue: mockStockMovementService,
         },
       ],
     }).compile();

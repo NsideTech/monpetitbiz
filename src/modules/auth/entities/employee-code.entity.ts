@@ -18,13 +18,13 @@ export class EmployeeCode {
   @Column({ name: 'created_by', type: 'uuid', nullable: false })
   createdBy: string;
 
-  @Column({ name: 'expires_at', type: 'datetime', nullable: false })
+  @Column({ name: 'expires_at', type: 'timestamptz', nullable: false })
   expiresAt: Date;
 
   @Column({ name: 'used_by', type: 'varchar', length: 20, nullable: true })
   usedBy: string; // phone number
 
-  @Column({ name: 'used_at', type: 'datetime', nullable: true })
+  @Column({ name: 'used_at', type: 'timestamptz', nullable: true })
   usedAt: Date;
 
   @Column({ name: 'is_active', type: 'boolean', default: true })

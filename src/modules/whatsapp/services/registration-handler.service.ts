@@ -6,6 +6,7 @@ import { NLPService } from './nlp.service';
 import { ConflictResolutionService } from './conflict-resolution.service';
 import { OnboardingMessagesService, BusinessDetails, ErrorContext } from './onboarding-messages.service';
 import { StockService } from '../../stock/stock.service';
+import { ProductNormalizerService } from '../../stock/services/product-normalizer.service';
 
 export interface RegistrationResponse {
   message: string;
@@ -33,6 +34,7 @@ export class RegistrationHandlerService {
     private readonly conflictResolutionService: ConflictResolutionService,
     private readonly onboardingMessagesService: OnboardingMessagesService,
     private readonly stockService: StockService,
+    private readonly productNormalizer: ProductNormalizerService,
   ) { }
 
   /**
@@ -669,7 +671,18 @@ export class RegistrationHandlerService {
       };
     }
 
-    const productName = productPriceMatch[1].trim();
+    // Nettoyer le nom du produit (supprimer les guillemets français « »)
+    const rawProductName = productPriceMatch[1].trim();
+    const productName = this.productNormalizer.cleanProductName(rawProductName);
+    
+    if (!productName || productName.trim().length === 0) {
+      return {
+        message: this.onboardingMessagesService.getProductSetupErrorMessage(),
+        completed: false,
+        nextStep: 'product_setup'
+      };
+    }
+
     const priceStr = productPriceMatch[2].replace(',', '.');
     const price = parseFloat(priceStr);
 

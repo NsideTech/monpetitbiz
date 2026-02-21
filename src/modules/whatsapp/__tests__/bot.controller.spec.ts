@@ -4,6 +4,7 @@ import { NLPService } from '../services/nlp.service';
 import { AuthService } from '../../auth/auth.service';
 import { TransactionService } from '../../transaction/transaction.service';
 import { StockService } from '../../stock/stock.service';
+import { ProductNormalizerService } from '../../stock/services/product-normalizer.service';
 import { ReportService } from '../../report/report.service';
 import { WhatsappService } from '../whatsapp.service';
 import { TwilioWhatsAppService } from '../services/twilio-whatsapp.service';
@@ -58,6 +59,14 @@ describe('BotController', () => {
             getStockLevel: jest.fn(),
             updateStock: jest.fn(),
             getStock: jest.fn(),
+          },
+        },
+        {
+          provide: ProductNormalizerService,
+          useValue: {
+            normalize: jest.fn((p: string) => p.trim().toLowerCase()),
+            cleanProductName: jest.fn((p: string) => p.trim()),
+            findBestMatch: jest.fn(),
           },
         },
         {

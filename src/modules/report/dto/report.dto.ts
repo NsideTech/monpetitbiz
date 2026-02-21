@@ -1,7 +1,8 @@
 export enum ReportPeriod {
   DAY = 'day',
   WEEK = 'week',
-  MONTH = 'month'
+  MONTH = 'month',
+  YEAR = 'year',
 }
 
 export interface BalanceReport {

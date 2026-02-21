@@ -76,7 +76,7 @@ export class AuthService {
   /**
    * Generate and send OTP to user's phone number
    */
-  async sendOTP(phoneNumber: string): Promise<string> {
+  async sendOTP(phoneNumber: string): Promise<{ message: string; code: string }> {
     // Clean phone number format
     const cleanPhoneNumber = this.cleanPhoneNumber(phoneNumber);
 
@@ -96,10 +96,10 @@ export class AuthService {
     });
 
     // In a real implementation, you would send the OTP via WhatsApp or SMS
-    // For now, we'll return the session ID for testing purposes
+    // For now, we log it and return it in dev for testing
     console.log(`OTP for ${cleanPhoneNumber}: ${code}`);
 
-    return 'OTP sent successfully';
+    return { message: 'OTP sent successfully', code };
   }
 
   /**
@@ -438,6 +438,7 @@ export class AuthService {
     // Define permission matrix
     const permissions = {
       [UserRole.OWNER]: [
+        'dashboard:read',
         'create_sale',
         'create_expense',
         'view_reports',
@@ -445,20 +446,22 @@ export class AuthService {
         'view_balance',
         'generate_pdf',
         'manage_users',
-        'view_business_code'
+        'view_business_code',
       ],
       [UserRole.MANAGER]: [
+        'dashboard:read',
         'create_sale',
         'create_expense',
         'view_reports',
         'manage_stock',
         'view_balance',
-        'generate_pdf'
+        'generate_pdf',
       ],
       [UserRole.SELLER]: [
+        'dashboard:read',
         'create_sale',
-        'manage_stock'
-      ]
+        'manage_stock',
+      ],
     };
 
     const userPermissions = permissions[user.role] || [];
@@ -679,6 +682,64 @@ export class AuthService {
     }
 
     throw new Error('Unable to generate unique business code after maximum attempts');
+  }
+
+  /**
+   * Update business info (name, ownerName, currency, timezone, country).
+   * Only the owner can update their business.
+   */
+  async updateBusiness(
+    userId: string,
+    businessId: string,
+    updates: { name?: string; ownerName?: string; currency?: string; timezone?: string; country?: string },
+  ): Promise<Business> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['business'],
+    });
+
+    if (!user || user.businessId !== businessId) {
+      throw new ForbiddenException('You do not have access to this business');
+    }
+
+    if (user.role !== UserRole.OWNER) {
+      throw new ForbiddenException('Only the owner can update business information');
+    }
+
+    const business = await this.businessRepository.findOne({ where: { id: businessId } });
+    if (!business) {
+      throw new BadRequestException('Business not found');
+    }
+
+    if (updates.name !== undefined) {
+      const trimmed = updates.name.trim();
+      if (trimmed.length < 2) {
+        throw new BadRequestException('Business name must be at least 2 characters');
+      }
+      business.name = trimmed;
+    }
+
+    if (updates.ownerName !== undefined) {
+      const trimmed = updates.ownerName.trim();
+      if (trimmed.length < 2) {
+        throw new BadRequestException('Owner name must be at least 2 characters');
+      }
+      business.ownerName = trimmed;
+    }
+
+    if (updates.currency !== undefined) {
+      business.currency = updates.currency.toUpperCase();
+    }
+
+    if (updates.timezone !== undefined) {
+      business.timezone = updates.timezone;
+    }
+
+    if (updates.country !== undefined) {
+      business.country = updates.country.toUpperCase();
+    }
+
+    return await this.businessRepository.save(business);
   }
 
   /**

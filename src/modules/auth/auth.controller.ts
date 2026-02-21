@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Patch,
   Body,
   HttpCode,
   HttpStatus,
@@ -69,6 +70,10 @@ export class RegisterBusinessOwnerRequestDto {
   @IsNotEmpty()
   businessName: string;
 
+  @IsString()
+  @IsNotEmpty()
+  ownerName: string;
+
   @IsOptional()
   @IsString()
   language?: string;
@@ -135,7 +140,8 @@ export class AuthController {
 
     return {
       success: true,
-      message: result,
+      message: result.message,
+      ...(process.env.NODE_ENV !== 'production' && { code: result.code }),
     };
   }
 
@@ -206,10 +212,10 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   async registerBusinessOwner(@Body() registerDto: RegisterBusinessOwnerRequestDto) {
     try {
-      const result = await this.authService.registerBusinessOwner({
+      const result = await this.authService.createBusinessWithOwner({
         phoneNumber: registerDto.phoneNumber,
         businessName: registerDto.businessName,
-        role: UserRole.OWNER,
+        ownerName: registerDto.ownerName,
         language: registerDto.language,
       });
 
@@ -217,21 +223,22 @@ export class AuthController {
         success: true,
         data: {
           user: {
-            id: result.user.id,
-            phoneNumber: result.user.phoneNumber,
-            role: result.user.role,
-            language: result.user.language,
-            businessId: result.user.businessId,
+            id: result.owner.id,
+            phoneNumber: result.owner.phoneNumber,
+            employeeName: result.owner.employeeName,
+            role: result.owner.role,
+            language: result.owner.language,
+            businessId: result.owner.businessId,
             business: {
-              id: result.user.business.id,
-              name: result.user.business.name,
-              businessCode: result.user.business.businessCode,
+              id: result.business.id,
+              name: result.business.name,
+              businessCode: result.businessCode,
             },
           },
           accessToken: result.accessToken,
-          businessCode: result.user.business.businessCode,
+          businessCode: result.businessCode,
         },
-        message: `Entreprise créée avec succès! Code d'invitation: ${result.user.business.businessCode}. Partagez ce code avec vos employés.`,
+        message: `Entreprise créée avec succès! Code d'invitation: ${result.businessCode}. Partagez ce code avec vos employés.`,
       };
     } catch (error) {
       if (error.status === 409) {
@@ -438,11 +445,38 @@ export class AuthController {
       data: {
         id: user.id,
         phoneNumber: user.phoneNumber,
+        employeeName: user.employeeName,
         role: user.role,
         language: user.language,
         businessId: user.businessId,
         business: user.business,
         isActive: user.isActive,
+      },
+    };
+  }
+
+  /**
+   * Update business information (owner only)
+   */
+  @Patch('business')
+  @UseGuards(JwtAuthGuard)
+  async updateBusiness(
+    @Request() req,
+    @Body() body: { name?: string; ownerName?: string; currency?: string; timezone?: string; country?: string },
+  ) {
+    const user = req.user;
+    const business = await this.authService.updateBusiness(user.id, user.businessId, body);
+
+    return {
+      success: true,
+      data: {
+        id: business.id,
+        name: business.name,
+        ownerName: business.ownerName,
+        businessCode: business.businessCode,
+        currency: business.currency,
+        timezone: business.timezone,
+        country: business.country,
       },
     };
   }

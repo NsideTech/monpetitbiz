@@ -19,12 +19,17 @@ This document provides a comprehensive reference for all environment variables u
 | `JWT_SECRET` | ✅ | - | Secret key for JWT token signing |
 | `JWT_EXPIRES_IN` | ❌ | 7d | JWT token expiration time |
 
+### Admin Portal Integration
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SERVICE_TOKEN` | ✅ | - | Service token for admin portal authentication. This token allows the admin portal to access any business data without ownership checks. Must match `BACKEND_SERVICE_TOKEN` in the admin portal configuration. |
+
 ### Application Settings
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `PORT` | ❌ | 3000 | Application port |
+| `PORT` | ❌ | 9000 | Application port |
 | `NODE_ENV` | ❌ | development | Environment: development, production, test |
-| `FRONTEND_URL` | ❌ | http://localhost:3001 | Frontend URL for CORS configuration |
+| `FRONTEND_URL` | ❌ | http://localhost:3001 | Admin portal URL for CORS configuration (e.g., https://admin.monpetitbiz.com) |
 
 ## WhatsApp Integration (Twilio - Primary)
 
@@ -300,7 +305,7 @@ This will return the status of all configuration components and help identify is
 
 ## Migration from Meta API
 
-If migrating from Meta WhatsApp Cloud API, see the [Twilio Migration Guide](./twilio-migration-guide.md) for detailed instructions.
+If migrating from Meta WhatsApp Cloud API, see the [Twilio Guide](./twilio-guide.md#migration-from-meta-api) for detailed instructions.
 
 ### Key Changes
 - Replace Meta API credentials with Twilio credentials

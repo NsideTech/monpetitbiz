@@ -41,6 +41,8 @@ tags:
     description: System health and monitoring
   - name: Dashboard
     description: Web dashboard API (read-only)
+  - name: Chat
+    description: In-app chatbot endpoints (mobile)
 
 paths:
   # Authentication Endpoints
@@ -135,6 +137,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/profile:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user profile
+      description: Returns the authenticated user profile and business context
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
 
   /auth/register:
     post:
@@ -601,6 +621,89 @@ paths:
                     message: "Code d'entreprise inexistant. Vérifiez avec votre employeur."
                     error: "Not Found"
 
+  # Chatbot (in-app) Endpoints
+  /chat/message:
+    post:
+      tags:
+        - Chat
+      summary: Send message to chatbot
+      description: Sends a text command to the chatbot and returns the response
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  example: "vente pain 1500"
+      responses:
+        '200':
+          description: Message processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  response:
+                    type: string
+                    example: "✅ Vente enregistrée: pain - 1500 XOF"
+                  messageId:
+                    type: string
+                    example: "msg_123456"
+                  timestamp:
+                    type: string
+                    format: date-time
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /chat/history:
+    get:
+      tags:
+        - Chat
+      summary: Get chat history
+      description: Retrieves the chat history for the authenticated user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 30
+      responses:
+        '200':
+          description: Chat history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatMessage'
+                  total:
+                    type: integer
+                    example: 10
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
   # WhatsApp Endpoints
   /whatsapp/webhook:
     get:
@@ -739,6 +842,18 @@ paths:
                 value:
                   from: "221123456789"
                   message: "bilan jour"
+      responses:
+        '200':
+          description: Test message processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
 
   /whatsapp/twilio/webhook:
     post:
@@ -948,21 +1063,6 @@ paths:
                     type: object
                   result:
                     type: object
-      responses:
-        '200':
-          description: Test message processed
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  message:
-                    type: string
-                  result:
-                    type: object
-
   # Health Endpoints
   /health:
     get:
@@ -1242,6 +1342,279 @@ paths:
                     type: object
 
   # Dashboard Endpoints
+  /dashboard/{businessId}:
+    get:
+      tags:
+        - Dashboard
+      summary: Get comprehensive dashboard data
+      description: Returns dashboard summary, charts, and key metrics for a business
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardData'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /dashboard/{businessId}/summary:
+    get:
+      tags:
+        - Dashboard
+      summary: Get dashboard summary cards
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Summary cards
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSummary'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /dashboard/{businessId}/chart-data:
+    get:
+      tags:
+        - Dashboard
+      summary: Get chart data
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 7
+      responses:
+        '200':
+          description: Chart data points
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChartDataPoint'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /dashboard/{businessId}/stock-warnings:
+    get:
+      tags:
+        - Dashboard
+      summary: Get stock warnings
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: threshold
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 5
+      responses:
+        '200':
+          description: Low stock warnings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StockWarning'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /dashboard/{businessId}/stock-levels:
+    get:
+      tags:
+        - Dashboard
+      summary: Get stock levels
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Stock levels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /dashboard/{businessId}/recent-transactions:
+    get:
+      tags:
+        - Dashboard
+      summary: Get recent transactions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 10
+      responses:
+        '200':
+          description: Recent transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /dashboard/{businessId}/export:
+    get:
+      tags:
+        - Dashboard
+      summary: Export transactions as JSON
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Export data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportData'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /dashboard/{businessId}/export/csv:
+    get:
+      tags:
+        - Dashboard
+      summary: Export transactions as CSV
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /dashboard/{businessId}/metrics:
+    get:
+      tags:
+        - Dashboard
+      summary: Get dashboard metrics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "month"
+      responses:
+        '200':
+          description: Dashboard metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardMetrics'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
   /dashboard/stats:
     get:
       tags:
@@ -1375,6 +1748,120 @@ components:
           type: string
           example: "Africa/Dakar"
           description: Business timezone
+
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "msg_123456"
+        message:
+          type: string
+          example: "vente pain 1500"
+        response:
+          type: string
+          example: "✅ Vente enregistrée: pain - 1500 XOF"
+        timestamp:
+          type: string
+          format: date-time
+
+    DashboardSummary:
+      type: object
+      properties:
+        daily:
+          $ref: '#/components/schemas/DashboardTotals'
+        weekly:
+          $ref: '#/components/schemas/DashboardTotals'
+        monthly:
+          $ref: '#/components/schemas/DashboardTotals'
+
+    DashboardTotals:
+      type: object
+      properties:
+        totalSales:
+          type: number
+          example: 150000
+        totalExpenses:
+          type: number
+          example: 75000
+        netProfit:
+          type: number
+          example: 75000
+
+    ChartDataPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2024-01-10"
+        sales:
+          type: number
+          example: 25000
+        expenses:
+          type: number
+          example: 12000
+
+    StockWarning:
+      type: object
+      properties:
+        productId:
+          type: string
+          format: uuid
+        productName:
+          type: string
+          example: "Pain"
+        currentStock:
+          type: number
+          example: 3
+        threshold:
+          type: number
+          example: 5
+
+    DashboardMetrics:
+      type: object
+      properties:
+        period:
+          type: string
+          example: "month"
+        totalSales:
+          type: number
+          example: 150000
+        totalExpenses:
+          type: number
+          example: 75000
+        netProfit:
+          type: number
+          example: 75000
+
+    ExportData:
+      type: object
+      properties:
+        transactions:
+          type: array
+          items:
+            type: object
+        count:
+          type: integer
+          example: 45
+
+    DashboardData:
+      type: object
+      properties:
+        summary:
+          $ref: '#/components/schemas/DashboardSummary'
+        chartData:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChartDataPoint'
+        stockWarnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/StockWarning'
+        recentTransactions:
+          type: array
+          items:
+            type: object
 
     WebhookPayload:
       type: object

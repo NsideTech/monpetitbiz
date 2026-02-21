@@ -23,6 +23,8 @@ describe('ReportSchedulerService', () => {
     timezone: 'Africa/Dakar',
     ownerName: 'Test Owner',
     country: 'SEN',
+    isActive: true,
+    deletedAt: null,
     createdAt: new Date(),
     users: [],
     transactions: [],

@@ -4,6 +4,7 @@ import { NLPService, UserContext, NLPResult } from './services/nlp.service';
 import { AuthService } from '../auth/auth.service';
 import { TransactionService } from '../transaction/transaction.service';
 import { StockService } from '../stock/stock.service';
+import { ProductNormalizerService } from '../stock/services/product-normalizer.service';
 import { ReportService } from '../report/report.service';
 import { WhatsappService } from './whatsapp.service';
 import { TwilioWhatsAppService } from './services/twilio-whatsapp.service';
@@ -35,6 +36,7 @@ export class BotController {
     private readonly authService: AuthService,
     private readonly transactionService: TransactionService,
     private readonly stockService: StockService,
+    private readonly productNormalizer: ProductNormalizerService,
     private readonly reportService: ReportService,
     private readonly whatsappService: WhatsappService,
     private readonly twilioWhatsAppService: TwilioWhatsAppService,
@@ -891,7 +893,15 @@ export class BotController {
         return { success: false, message: response };
       }
 
-      const productName = command.product.trim();
+      // Nettoyer le nom du produit (supprimer les guillemets français « »)
+      const productName = this.productNormalizer.cleanProductName(command.product);
+      if (!productName || productName.trim().length === 0) {
+        const response = '❌ Le nom du produit ne peut pas être vide.\n\n' +
+          '📝 Format: ajout produit \'nom_produit\'\n' +
+          '💡 Exemple: ajout produit \'pain\'';
+        await this.sendErrorMessage(phoneNumber, response);
+        return { success: false, message: response };
+      }
 
       // If price is provided, create product with price directly
       if (command.unitPrice && command.unitPrice > 0) {
@@ -927,7 +937,7 @@ export class BotController {
       );
 
       const response = `📦 **Produit créé !**\n\n` +
-        `📦 **Nom:** ${productName}\n` +
+        `📦 **Nom:** ${stockItem.product}\n` +
         `🏷️ **Code:** ${stockItem.productCode}\n\n` +
         `💰 Veuillez définir le prix unitaire :\n\n` +
         `📝 **Avec le code:** prix ${stockItem.productCode} [montant]\n` +

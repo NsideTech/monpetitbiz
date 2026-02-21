@@ -125,6 +125,18 @@ export class ReportService {
   }
 
   /**
+   * Generate yearly report for a business
+   */
+  async generateYearlyReport(businessId: string): Promise<BalanceReport> {
+    return this.generateBalanceReport({
+      businessId,
+      period: ReportPeriod.YEAR,
+      includeTopProducts: true,
+      topProductsLimit: 10
+    });
+  }
+
+  /**
    * Get period-based metrics for trend analysis
    */
   async getPeriodMetrics(
@@ -237,6 +249,15 @@ export class ReportService {
         end.setDate(0);
         end.setHours(23, 59, 59, 999);
         break;
+
+      case ReportPeriod.YEAR:
+        start.setMonth(0);
+        start.setDate(1);
+        start.setHours(0, 0, 0, 0);
+        end.setMonth(11);
+        end.setDate(31);
+        end.setHours(23, 59, 59, 999);
+        break;
     }
 
     return { start, end };
@@ -280,6 +301,17 @@ export class ReportService {
         end.setDate(0);
         end.setHours(23, 59, 59, 999);
         break;
+
+      case ReportPeriod.YEAR:
+        start.setFullYear(baseDate.getFullYear() - offset);
+        start.setMonth(0);
+        start.setDate(1);
+        start.setHours(0, 0, 0, 0);
+        end.setFullYear(start.getFullYear());
+        end.setMonth(11);
+        end.setDate(31);
+        end.setHours(23, 59, 59, 999);
+        break;
     }
 
     return { start, end };
@@ -304,7 +336,10 @@ export class ReportService {
       
       case ReportPeriod.MONTH:
         return start.toLocaleDateString('fr-FR', { year: 'numeric', month: 'long' });
-      
+
+      case ReportPeriod.YEAR:
+        return start.getFullYear().toString();
+
       default:
         return `${start.toLocaleDateString('fr-FR', options)} - ${end.toLocaleDateString('fr-FR', options)}`;
     }
@@ -323,7 +358,10 @@ export class ReportService {
       
       case ReportPeriod.MONTH:
         return date.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
-      
+
+      case ReportPeriod.YEAR:
+        return date.getFullYear().toString();
+
       default:
         return date.toLocaleDateString('fr-FR');
     }

@@ -6,6 +6,7 @@ import { NLPService } from '../nlp.service';
 import { ConflictResolutionService } from '../conflict-resolution.service';
 import { OnboardingMessagesService } from '../onboarding-messages.service';
 import { StockService } from '../../../stock/stock.service';
+import { ProductNormalizerService } from '../../../stock/services/product-normalizer.service';
 import { UserRole } from '../../../auth/entities/user.entity';
 
 describe('RegistrationHandlerService - Merchant Onboarding', () => {
@@ -96,6 +97,14 @@ describe('RegistrationHandlerService - Merchant Onboarding', () => {
           provide: StockService,
           useValue: {
             setUnitPrice: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: ProductNormalizerService,
+          useValue: {
+            normalize: jest.fn((p: string) => p.trim().toLowerCase()),
+            cleanProductName: jest.fn((p: string) => p.trim()),
+            findBestMatch: jest.fn(),
           },
         },
       ],

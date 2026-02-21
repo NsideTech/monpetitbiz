@@ -44,6 +44,8 @@ export async function createNestApplication(expressInstance?: express.Express, o
     }));
 
     // Enable CORS
+    // FRONTEND_URL should point to the admin portal URL (e.g., https://admin.monpetitbiz.com)
+    // In development, all origins are allowed for easier testing
     app.enableCors({
         origin: process.env.NODE_ENV === 'production'
             ? [

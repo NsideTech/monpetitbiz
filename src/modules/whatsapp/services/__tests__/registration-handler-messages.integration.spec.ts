@@ -6,6 +6,7 @@ import { AuthService } from '../../../auth/auth.service';
 import { NLPService } from '../nlp.service';
 import { ConflictResolutionService } from '../conflict-resolution.service';
 import { StockService } from '../../../stock/stock.service';
+import { ProductNormalizerService } from '../../../stock/services/product-normalizer.service';
 
 describe('RegistrationHandlerService - Messages Integration', () => {
     let registrationHandler: RegistrationHandlerService;
@@ -66,6 +67,14 @@ describe('RegistrationHandlerService - Messages Integration', () => {
                 {
                     provide: StockService,
                     useValue: mockStockService,
+                },
+                {
+                    provide: ProductNormalizerService,
+                    useValue: {
+                        normalize: jest.fn((p: string) => p.trim().toLowerCase()),
+                        cleanProductName: jest.fn((p: string) => p.trim()),
+                        findBestMatch: jest.fn(),
+                    },
                 },
             ],
         }).compile();

@@ -41,7 +41,7 @@ export class User {
   @Column({ name: 'invited_by', type: 'uuid', nullable: true })
   invitedBy: string;
 
-  @Column({ name: 'joined_at', type: 'datetime', nullable: true })
+  @Column({ name: 'joined_at', type: 'timestamptz', nullable: true })
   joinedAt: Date;
 
   @CreateDateColumn({ name: 'created_at' })

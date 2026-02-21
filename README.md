@@ -469,7 +469,7 @@ The application provides comprehensive monitoring endpoints:
 
 ## 🐛 Troubleshooting
 
-For comprehensive troubleshooting information, see the [Twilio Troubleshooting Guide](docs/twilio-troubleshooting-guide.md).
+For comprehensive troubleshooting information, see the [Database Connection Troubleshooting](docs/database-connection-troubleshooting.md) and [Deployment Guide](DEPLOYMENT.md).
 
 ### Common Issues
 
@@ -521,7 +521,7 @@ pm2 logs monpetitbiz
 
 ## 🚀 Deployment
 
-For detailed production deployment instructions, see the [Twilio Production Deployment Guide](docs/twilio-production-deployment.md).
+For detailed production deployment instructions, see the [Deployment Guide](DEPLOYMENT.md).
 
 ### Docker Deployment
 
@@ -548,8 +548,8 @@ REDIS_URL=redis://localhost:6379  # For production queue
 ### Monitoring and Alerting
 
 For comprehensive monitoring setup, see:
-- [Monitoring and Alerting Guide](docs/twilio-monitoring-alerting-guide.md)
-- [Troubleshooting Guide](docs/twilio-troubleshooting-guide.md)
+- [Deployment Guide](DEPLOYMENT.md) - Production deployment and configuration
+- [Database Troubleshooting](docs/database-connection-troubleshooting.md) - Common connection issues
 
 ## 📚 Documentation
 
@@ -564,21 +564,22 @@ The complete API documentation is available at `/api` when the server is running
 
 ### Feature Documentation
 
-#### Price Management (NEW!) ✨
-- **[Price Setting Guide](docs/price-setting-guide.md)** - Complete guide for setting and managing prices
-- **[Transaction List Guide](docs/transaction-list-guide.md)** - How to view detailed transaction lists
-- **[Quick Reference](QUICK-PRICE-REFERENCE.md)** - Quick command reference card
+#### Price & Product Management
+- **[How to View Prices](docs/how-to-view-prices.md)** - View product prices and stock values
+- **[Product Codes System](docs/codes-produits.md)** - Automatic product code generation
+- **[Composite Product Names](docs/noms-produits-composes.md)** - Handling multi-word product names
 
 #### Multiple Units Management
-- **[User Guide](docs/units-management-guide.md)** - Complete guide for merchants
-- **[WhatsApp Commands Reference](docs/whatsapp-units-commands.md)** - Quick command reference
-- **[Technical Documentation](docs/units-technical-documentation.md)** - Developer documentation
+- **[Technical Documentation](docs/units-technical-documentation.md)** - Units system architecture and API
 
-#### Other Features
-- **[Twilio Setup Guide](docs/twilio-setup-guide.md)** - WhatsApp integration setup
-- **[Production Deployment](docs/twilio-production-deployment.md)** - Production deployment guide
-- **[Monitoring & Alerting](docs/twilio-monitoring-alerting-guide.md)** - System monitoring
-- **[Troubleshooting Guide](docs/twilio-troubleshooting-guide.md)** - Common issues and solutions
+#### WhatsApp / Twilio
+- **[Twilio Guide](docs/twilio-guide.md)** - Setup, deployment, monitoring, troubleshooting
+
+#### Admin & Deployment
+- **[Admin Portal Setup](docs/admin-portal-setup.md)** - Admin dashboard deployment
+- **[Admin Portal Integration](docs/admin-portal-integration.md)** - Backend integration for admin
+- **[Environment Variables](docs/environment-variables.md)** - Configuration reference
+- **[Deployment Guide](DEPLOYMENT.md)** - Production deployment
 
 ## 🤝 Contributing
 

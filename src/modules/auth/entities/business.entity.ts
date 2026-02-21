@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, DeleteDateColumn, OneToMany, Index } from 'typeorm';
 import { User } from './user.entity';
 import { Transaction } from '../../transaction/entities/transaction.entity';
 import { StockItem } from '../../stock/entities/stock-item.entity';
@@ -29,8 +29,14 @@ export class Business {
   @Column({ name: 'country', type: 'varchar', length: 3, nullable: true })
   country: string;
 
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive: boolean;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
+
+  @DeleteDateColumn({ name: 'deleted_at', nullable: true })
+  deletedAt: Date | null;
 
   // Relations
   @OneToMany(() => User, user => user.business)

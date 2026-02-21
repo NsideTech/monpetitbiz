@@ -1,11 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository, Between, IsNull } from 'typeorm';
 import { Transaction, TransactionType } from '../transaction/entities/transaction.entity';
 import { StockItem } from '../stock/entities/stock-item.entity';
 import { Business } from '../auth/entities/business.entity';
 import { ReportService } from '../report/report.service';
 import { StockService } from '../stock/stock.service';
+import { ProductNormalizerService } from '../stock/services/product-normalizer.service';
+import { TransactionService } from '../transaction/transaction.service';
+import { StockMovementService } from '../stock/services/stock-movement.service';
 
 export interface DashboardSummary {
   todaySales: number;
@@ -61,7 +64,10 @@ export class DashboardService {
     private businessRepository: Repository<Business>,
     private reportService: ReportService,
     private stockService: StockService,
-  ) { }
+    private productNormalizer: ProductNormalizerService,
+    private transactionService: TransactionService,
+    private stockMovementService: StockMovementService,
+  ) {}
 
   /**
    * Get comprehensive dashboard data for a business
@@ -208,11 +214,132 @@ export class DashboardService {
    * Get recent transactions for display
    */
   async getRecentTransactions(businessId: string, limit: number = 10): Promise<Transaction[]> {
-    return await this.transactionRepository.find({
-      where: { businessId },
-      order: { createdAt: 'DESC' },
-      take: limit,
-      relations: ['user']
+    return await this.getTransactions(businessId, { limit });
+  }
+
+  /**
+   * Get transactions with optional filters (type, startDate, endDate, limit, offset)
+   */
+  async getTransactions(
+    businessId: string,
+    filters: {
+      type?: TransactionType;
+      startDate?: Date;
+      endDate?: Date;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ): Promise<Transaction[]> {
+    const { type, startDate, endDate, limit = 50, offset = 0 } = filters;
+
+    const queryBuilder = this.transactionRepository
+      .createQueryBuilder('transaction')
+      .leftJoinAndSelect('transaction.user', 'user')
+      .where('transaction.businessId = :businessId', { businessId })
+      .orderBy('transaction.createdAt', 'DESC');
+
+    if (type) {
+      queryBuilder.andWhere('transaction.type = :type', { type });
+    }
+
+    if (startDate) {
+      queryBuilder.andWhere('transaction.createdAt >= :startDate', { startDate });
+    }
+
+    if (endDate) {
+      queryBuilder.andWhere('transaction.createdAt <= :endDate', { endDate });
+    }
+
+    queryBuilder.take(limit).skip(offset);
+
+    return queryBuilder.getMany();
+  }
+
+  /**
+   * Create a transaction (sale or expense) from mobile
+   */
+  async createTransaction(
+    businessId: string,
+    userId: string,
+    data: {
+      type: TransactionType;
+      amount: number;
+      product?: string;
+      description?: string;
+    },
+  ): Promise<Transaction> {
+    const business = await this.businessRepository.findOne({
+      where: { id: businessId, deletedAt: IsNull() },
+    });
+    if (!business) {
+      throw new NotFoundException('Business not found');
+    }
+
+    if (data.type === TransactionType.SALE) {
+      return this.transactionService.recordSale(
+        businessId,
+        userId,
+        data.amount,
+        data.product,
+        data.description,
+      );
+    }
+    return this.transactionService.recordExpense(
+      businessId,
+      userId,
+      data.amount,
+      data.product,
+      data.description,
+    );
+  }
+
+  /**
+   * Adjust stock quantity for a product (mobile)
+   */
+  async adjustStock(
+    businessId: string,
+    productId: string,
+    newQuantity: number,
+    userId: string,
+  ): Promise<StockItem> {
+    const stockItems = await this.stockService.getStock(businessId);
+    const product = stockItems.find((p) => p.id === productId);
+    if (!product) {
+      throw new NotFoundException('Produit non trouvé');
+    }
+    if (newQuantity < 0 || !Number.isInteger(newQuantity)) {
+      throw new BadRequestException('La quantité doit être un entier >= 0');
+    }
+    return this.stockService.updateStock(
+      businessId,
+      product.product,
+      newQuantity,
+      userId,
+    );
+  }
+
+  /**
+   * Get stock movement history (mobile)
+   */
+  async getStockMovements(
+    businessId: string,
+    filters: { productId?: string; limit?: number; offset?: number } = {},
+  ): Promise<import('../stock/entities/stock-movement.entity').StockMovement[]> {
+    const { productId, limit = 50, offset = 0 } = filters;
+    let productName: string | undefined;
+    if (productId) {
+      const stockItems = await this.stockService.getStock(businessId);
+      const product = stockItems.find((p) => p.id === productId);
+      if (!product) {
+        throw new NotFoundException('Produit non trouvé');
+      }
+      productName = product.product;
+    }
+    return this.stockMovementService.getMovementHistory({
+      businessId,
+      productName,
+      limit,
+      offset,
     });
   }
 
@@ -245,8 +372,146 @@ export class DashboardService {
   async getStockLevels(businessId: string): Promise<StockItem[]> {
     return await this.stockRepository.find({
       where: { businessId },
-      order: { product: 'ASC' }
+      order: { product: 'ASC' },
     });
+  }
+
+  /**
+   * Create a product (mobile)
+   */
+  async createProduct(
+    businessId: string,
+    productData: { name: string; quantity: number; unitPrice?: number },
+  ): Promise<StockItem> {
+    const business = await this.businessRepository.findOne({
+      where: { id: businessId, deletedAt: IsNull() },
+    });
+    if (!business) {
+      throw new NotFoundException(`Business not found`);
+    }
+
+    const cleanedName = this.productNormalizer.cleanProductName(productData.name);
+    if (!cleanedName?.trim()) {
+      throw new BadRequestException('Le nom du produit est requis');
+    }
+
+    const existing = await this.stockService.getStock(businessId);
+    const normalized = this.productNormalizer.normalize(cleanedName);
+    const conflict = existing.find(
+      (p) => this.productNormalizer.normalize(p.product) === normalized,
+    );
+    if (conflict) {
+      throw new BadRequestException(`Le produit "${cleanedName}" existe déjà`);
+    }
+
+    const stockItem = await this.stockService.updateStock(
+      businessId,
+      cleanedName,
+      Math.floor(productData.quantity ?? 0),
+    );
+
+    if (productData.unitPrice !== undefined && productData.unitPrice >= 0) {
+      await this.stockService.setUnitPrice(
+        businessId,
+        cleanedName,
+        productData.unitPrice,
+      );
+      const updated = await this.stockService.getStock(businessId, cleanedName);
+      return updated[0];
+    }
+
+    return stockItem;
+  }
+
+  /**
+   * Update a product (mobile)
+   */
+  async updateProduct(
+    businessId: string,
+    productId: string,
+    productData: { name?: string; quantity?: number; unitPrice?: number },
+  ): Promise<StockItem> {
+    const business = await this.businessRepository.findOne({
+      where: { id: businessId, deletedAt: IsNull() },
+    });
+    if (!business) {
+      throw new NotFoundException(`Business not found`);
+    }
+
+    const existing = await this.stockService.getStock(businessId);
+    const product = existing.find((p) => p.id === productId);
+    if (!product) {
+      throw new NotFoundException(`Produit non trouvé`);
+    }
+
+    if (productData.name !== undefined) {
+      const cleanedName = this.productNormalizer.cleanProductName(productData.name);
+      if (!cleanedName?.trim()) {
+        throw new BadRequestException('Le nom du produit ne peut pas être vide');
+      }
+      const normalized = this.productNormalizer.normalize(cleanedName);
+      const currentNorm = this.productNormalizer.normalize(product.product);
+      if (normalized !== currentNorm) {
+        const conflict = existing.find(
+          (p) => p.id !== productId && this.productNormalizer.normalize(p.product) === normalized,
+        );
+        if (conflict) {
+          throw new BadRequestException(`Le produit "${cleanedName}" existe déjà`);
+        }
+        product.product = cleanedName.trim().toLowerCase();
+        product.updatedAt = new Date();
+        await this.stockRepository.save(product);
+      }
+    }
+
+    if (productData.quantity !== undefined) {
+      if (productData.quantity < 0 || isNaN(productData.quantity)) {
+        throw new BadRequestException('La quantité doit être >= 0');
+      }
+      await this.stockService.updateStock(
+        businessId,
+        product.product,
+        Math.floor(productData.quantity),
+        undefined,
+      );
+    }
+
+    if (productData.unitPrice !== undefined) {
+      if (productData.unitPrice < 0 || isNaN(productData.unitPrice)) {
+        throw new BadRequestException('Le prix doit être >= 0');
+      }
+      await this.stockService.setUnitPrice(
+        businessId,
+        product.product,
+        productData.unitPrice,
+      );
+    }
+
+    const updated = await this.stockService.getStock(businessId, product.product);
+    return updated[0];
+  }
+
+  /**
+   * Delete a product (mobile)
+   */
+  async deleteProduct(
+    businessId: string,
+    productId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const business = await this.businessRepository.findOne({
+      where: { id: businessId, deletedAt: IsNull() },
+    });
+    if (!business) {
+      throw new NotFoundException(`Business not found`);
+    }
+
+    const existing = await this.stockService.getStock(businessId);
+    const product = existing.find((p) => p.id === productId);
+    if (!product) {
+      throw new NotFoundException(`Produit non trouvé`);
+    }
+
+    return await this.stockService.deleteProduct(businessId, product.product);
   }
 
   /**

@@ -27,6 +27,7 @@ describe('StockService', () => {
 
   const mockProductNormalizerService = {
     normalize: jest.fn((product: string) => product.trim().toLowerCase()),
+    cleanProductName: jest.fn((product: string) => product.trim()),
     findBestMatch: jest.fn((product: string, products: string[]) => {
       return products.find(p => p === product) || null;
     }),

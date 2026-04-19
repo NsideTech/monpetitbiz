@@ -5,7 +5,13 @@ import {
   BusinessInfo,
   ChatMessage,
   DashboardSummary,
+  Employee,
+  EmployeeCode,
+  Loan,
+  LoansSummary,
   Product,
+  Receivable,
+  ReceivablesSummary,
   RegisterBusinessResponse,
   StockMovement,
   StockWarning,
@@ -208,7 +214,14 @@ export const fetchTransactions = async (
 export const createTransaction = async (
   token: string,
   businessId: string,
-  data: {type: 'sale' | 'expense'; amount: number; product?: string; description?: string},
+  data: {
+    type: 'sale' | 'expense';
+    amount: number;
+    product?: string;
+    quantity?: number;
+    description?: string;
+    creditSale?: { debtorName: string; debtorPhone?: string };
+  },
 ): Promise<Transaction> => {
   return apiRequest<Transaction>(`/dashboard/${businessId}/transactions`, {
     method: 'POST',
@@ -242,6 +255,156 @@ export const fetchStockWarnings = async (
   );
 };
 
+export const fetchReceivablesSummary = async (
+  token: string,
+  businessId: string,
+): Promise<ReceivablesSummary> => {
+  return apiRequest<ReceivablesSummary>(
+    `/dashboard/${businessId}/receivables-summary`,
+    {token},
+  );
+};
+
+export const fetchReceivables = async (
+  token: string,
+  businessId: string,
+  filters?: {status?: 'open' | 'partial' | 'paid' | 'overdue'; limit?: number; offset?: number},
+): Promise<Receivable[]> => {
+  const params = new URLSearchParams();
+  if (filters?.status) params.set('status', filters.status);
+  if (filters?.limit != null) params.set('limit', String(filters.limit));
+  if (filters?.offset != null) params.set('offset', String(filters.offset));
+  const query = params.toString() ? `?${params.toString()}` : '';
+  return apiRequest<Receivable[]>(`/dashboard/${businessId}/receivables${query}`, {token});
+};
+
+export const fetchReceivable = async (
+  token: string,
+  businessId: string,
+  id: string,
+): Promise<Receivable> => {
+  return apiRequest<Receivable>(`/dashboard/${businessId}/receivables/${id}`, {token});
+};
+
+export const createReceivable = async (
+  token: string,
+  businessId: string,
+  data: {debtorName: string; debtorPhone?: string; amount: number; description?: string; dueDate?: string},
+): Promise<Receivable> => {
+  return apiRequest<Receivable>(`/dashboard/${businessId}/receivables`, {
+    method: 'POST',
+    token,
+    body: data,
+  });
+};
+
+export const recordReceivablePayment = async (
+  token: string,
+  businessId: string,
+  receivableId: string,
+  data: {amount: number; paymentDate?: string; notes?: string},
+): Promise<Receivable> => {
+  return apiRequest<Receivable>(
+    `/dashboard/${businessId}/receivables/${receivableId}/payments`,
+    {
+      method: 'POST',
+      token,
+      body: data,
+    },
+  );
+};
+
+export const recordFullReceivablePayment = async (
+  token: string,
+  businessId: string,
+  receivableId: string,
+  data?: {paymentDate?: string; notes?: string},
+): Promise<Receivable> => {
+  return apiRequest<Receivable>(
+    `/dashboard/${businessId}/receivables/${receivableId}/payments/full`,
+    {
+      method: 'POST',
+      token,
+      body: data || {},
+    },
+  );
+};
+
+export const fetchLoansSummary = async (
+  token: string,
+  businessId: string,
+): Promise<LoansSummary> => {
+  return apiRequest<LoansSummary>(
+    `/dashboard/${businessId}/loans-summary`,
+    {token},
+  );
+};
+
+export const fetchLoans = async (
+  token: string,
+  businessId: string,
+  filters?: {status?: 'open' | 'partial' | 'paid' | 'overdue'; limit?: number; offset?: number},
+): Promise<Loan[]> => {
+  const params = new URLSearchParams();
+  if (filters?.status) params.set('status', filters.status);
+  if (filters?.limit != null) params.set('limit', String(filters.limit));
+  if (filters?.offset != null) params.set('offset', String(filters.offset));
+  const query = params.toString() ? `?${params.toString()}` : '';
+  return apiRequest<Loan[]>(`/dashboard/${businessId}/loans${query}`, {token});
+};
+
+export const fetchLoan = async (
+  token: string,
+  businessId: string,
+  id: string,
+): Promise<Loan> => {
+  return apiRequest<Loan>(`/dashboard/${businessId}/loans/${id}`, {token});
+};
+
+export const createLoan = async (
+  token: string,
+  businessId: string,
+  data: {lenderName: string; lenderPhone?: string; loanType: 'supplier' | 'microcredit'; amount: number; dueDate: string; description?: string},
+): Promise<Loan> => {
+  return apiRequest<Loan>(`/dashboard/${businessId}/loans`, {
+    method: 'POST',
+    token,
+    body: data,
+  });
+};
+
+export const recordLoanPayment = async (
+  token: string,
+  businessId: string,
+  loanId: string,
+  data: {amount: number; paymentDate?: string; notes?: string},
+): Promise<Loan> => {
+  return apiRequest<Loan>(
+    `/dashboard/${businessId}/loans/${loanId}/payments`,
+    {
+      method: 'POST',
+      token,
+      body: data,
+    },
+  );
+};
+
+export const recordFullLoanPayment = async (
+  token: string,
+  businessId: string,
+  loanId: string,
+  data?: {paymentDate?: string; notes?: string},
+): Promise<Loan> => {
+  return apiRequest<Loan>(
+    `/dashboard/${businessId}/loans/${loanId}/payments/full`,
+    {
+      method: 'POST',
+      token,
+      body: data || {},
+    },
+  );
+};
+
 export const adjustStock = async (
   token: string,
   businessId: string,
@@ -253,4 +416,78 @@ export const adjustStock = async (
     token,
     body: {quantity},
   });
+};
+
+export const fetchEmployees = async (token: string): Promise<Employee[]> => {
+  const res = await apiRequest<{success: boolean; data: Employee[]}>('/auth/employees', {token});
+  return res.data;
+};
+
+export const generateEmployeeCode = async (token: string): Promise<EmployeeCode> => {
+  const res = await apiRequest<{success: boolean; data: EmployeeCode}>('/auth/generate-employee-code', {
+    method: 'POST',
+    token,
+  });
+  return res.data;
+};
+
+export const updateEmployeeRole = async (
+  token: string,
+  phoneNumber: string,
+  role: 'seller' | 'manager',
+): Promise<void> => {
+  await apiRequest(`/auth/employees/${encodeURIComponent(phoneNumber)}`, {
+    method: 'PATCH',
+    token,
+    body: {role},
+  });
+};
+
+export const removeEmployee = async (
+  token: string,
+  phoneNumber: string,
+): Promise<void> => {
+  await apiRequest(`/auth/employees/${encodeURIComponent(phoneNumber)}`, {
+    method: 'DELETE',
+    token,
+  });
+};
+
+export const lookupBusinessByCode = async (
+  code: string,
+): Promise<{businessName: string; businessCode: string; employeeCount: number}> => {
+  const res = await apiRequest<{
+    success: boolean;
+    data?: {business: {id: string; name: string; businessCode: string}; employeeCount: number};
+    message?: string;
+  }>(`/auth/business/${encodeURIComponent(code.toUpperCase())}`);
+  if (!res.success || !res.data) {
+    throw new Error(res.message || 'Code introuvable');
+  }
+  return {
+    businessName: res.data.business.name,
+    businessCode: res.data.business.businessCode,
+    employeeCount: res.data.employeeCount,
+  };
+};
+
+export const registerEmployee = async (payload: {
+  phoneNumber: string;
+  businessCode: string;
+  employeeName: string;
+  role: 'seller' | 'manager';
+  language?: string;
+}): Promise<{accessToken: string; user: UserProfile}> => {
+  const res = await apiRequest<{
+    success: boolean;
+    data: {user: UserProfile; accessToken: string};
+    message: string;
+  }>('/auth/register-employee', {
+    method: 'POST',
+    body: payload,
+  });
+  if (!res.success) {
+    throw new Error((res as any).message || "Erreur d'inscription");
+  }
+  return {accessToken: res.data.accessToken, user: res.data.user};
 };

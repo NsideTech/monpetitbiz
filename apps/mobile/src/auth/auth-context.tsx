@@ -6,6 +6,7 @@ type AuthContextValue = {
   profile: UserProfile | null;
   setAccessToken: (token: string | null) => void;
   setProfile: (profile: UserProfile | null) => void;
+  logout: () => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextValue | undefined>(

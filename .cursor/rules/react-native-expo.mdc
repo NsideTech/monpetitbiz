@@ -1,0 +1,104 @@
+---
+description: React Native Expo best practices for the mobile app
+globs: apps/mobile/**
+alwaysApply: false
+---
+
+# React Native Expo Best Practices
+
+## Project Structure
+
+```
+apps/mobile/src/
+  api/          # API client, endpoint functions, response types
+  auth/         # Auth context & hooks
+  components/   # Reusable UI components
+  navigation/   # Navigator setup & type definitions
+  screens/      # Screen components (one per route)
+  storage/      # Secure storage utilities
+  theme.ts      # Centralized design tokens
+  config.ts     # App configuration
+```
+
+New screens go in `screens/`, reusable UI in `components/`, API functions in `api/mobile-api.ts`.
+
+## Styling
+
+Use `StyleSheet.create()` with the centralized theme from `src/theme.ts`. Never use inline style objects or hardcoded colors/spacing.
+
+```tsx
+// ✅ GOOD
+import { theme } from '../theme';
+
+const styles = StyleSheet.create({
+  container: {
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.green[50],
+    borderRadius: theme.borderRadius.md,
+  },
+});
+
+// ❌ BAD — hardcoded values
+const styles = StyleSheet.create({
+  container: { padding: 16, backgroundColor: '#F0FDF4', borderRadius: 12 },
+});
+```
+
+## Components
+
+- Functional components only, with TypeScript props interfaces.
+- Use `Pressable` over `TouchableOpacity` for touch interactions.
+- Extract reusable UI into `src/components/` with variant/size props.
+- Use `useCallback` for handlers passed to child components or FlatList.
+
+## Navigation
+
+- React Navigation v7 with Native Stack.
+- Define all route params in `src/navigation/types.ts`.
+- Use typed `useNavigation<NativeStackNavigationProp<…>>()` hooks.
+- Auth vs Main stacks are conditional on `accessToken` in `AuthContext`.
+
+## API & Data Fetching
+
+- All API calls go through `apiRequest()` from `src/api/client.ts`.
+- Add new endpoints as exported functions in `src/api/mobile-api.ts`.
+- Define response types in `src/api/types.ts`.
+- Fetch data in `useEffect` or `useCallback`; handle loading/error states locally.
+
+```tsx
+// ✅ Pattern for screen data fetching
+const [data, setData] = useState<MyType | null>(null);
+const [loading, setLoading] = useState(true);
+
+const load = useCallback(async () => {
+  setLoading(true);
+  try {
+    const result = await fetchMyData(token);
+    setData(result);
+  } finally {
+    setLoading(false);
+  }
+}, [token]);
+
+useEffect(() => { load(); }, [load]);
+```
+
+## State Management
+
+- Use React Context for cross-cutting concerns (auth, drawer).
+- Use local `useState` for screen-level state.
+- Custom hooks (`useAuth`, `useDrawer`) to access contexts.
+- No Redux/Zustand — keep it simple with Context + hooks.
+
+## Security
+
+- Store tokens with `expo-secure-store`, never `AsyncStorage`.
+- The API client auto-logs out on 401 responses.
+- Never log or expose tokens in error messages.
+
+## General
+
+- TypeScript strict mode — no `any` types.
+- Expo SDK ~54; use Expo-compatible packages only.
+- French localization for user-facing strings.
+- Role-aware UI: check `profile.role` (owner, manager, seller) before rendering privileged features.

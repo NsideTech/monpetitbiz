@@ -35,6 +35,8 @@ import { CartCreateHandler } from './handlers/cart-create-handler';
 import { CartHandlers } from './handlers/cart-handlers';
 import { SaleSessionService } from './services/sale-session.service';
 import { InvoiceModule } from '../invoice/invoice.module';
+import { ReceivableModule } from '../receivable/receivable.module';
+import { LoanModule } from '../loan/loan.module';
 
 @Module({
   imports: [
@@ -43,6 +45,8 @@ import { InvoiceModule } from '../invoice/invoice.module';
     TransactionModule,
     StockModule,
     InvoiceModule,
+    ReceivableModule,
+    LoanModule,
     forwardRef(() => ReportModule),
   ],
   providers: [

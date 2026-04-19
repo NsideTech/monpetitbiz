@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, IsNull } from 'typeorm';
-import { Transaction, TransactionType } from '../transaction/entities/transaction.entity';
+import { DataSource, Repository, Between, IsNull } from 'typeorm';
+import { Transaction, TransactionType, PaymentMethod } from '../transaction/entities/transaction.entity';
 import { StockItem } from '../stock/entities/stock-item.entity';
 import { Business } from '../auth/entities/business.entity';
 import { ReportService } from '../report/report.service';
@@ -9,6 +9,7 @@ import { StockService } from '../stock/stock.service';
 import { ProductNormalizerService } from '../stock/services/product-normalizer.service';
 import { TransactionService } from '../transaction/transaction.service';
 import { StockMovementService } from '../stock/services/stock-movement.service';
+import { ReceivableService } from '../receivable/receivable.service';
 
 export interface DashboardSummary {
   todaySales: number;
@@ -21,6 +22,11 @@ export interface DashboardSummary {
   monthExpenses: number;
   monthProfit: number;
   currency: string;
+  // B2 — Synthèse comparative
+  yesterdaySales: number;
+  variationVsYesterday: number;
+  averageLast7Days: number;
+  variationVsAverage: number;
 }
 
 export interface ChartDataPoint {
@@ -38,12 +44,20 @@ export interface StockWarning {
   message: string;
 }
 
+export interface TopProduct {
+  product: string;
+  totalRevenue: number;
+  totalQuantity: number;
+  transactionCount: number;
+}
+
 export interface DashboardData {
   summary: DashboardSummary;
   recentTransactions: Transaction[];
   chartData: ChartDataPoint[];
   stockWarnings: StockWarning[];
   stockLevels: StockItem[];
+  topProducts: TopProduct[];
 }
 
 export interface ExportData {
@@ -55,6 +69,8 @@ export interface ExportData {
 
 @Injectable()
 export class DashboardService {
+  private readonly logger = new Logger(DashboardService.name);
+
   constructor(
     @InjectRepository(Transaction)
     private transactionRepository: Repository<Transaction>,
@@ -67,6 +83,8 @@ export class DashboardService {
     private productNormalizer: ProductNormalizerService,
     private transactionService: TransactionService,
     private stockMovementService: StockMovementService,
+    private receivableService: ReceivableService,
+    private dataSource: DataSource,
   ) {}
 
   /**
@@ -74,20 +92,23 @@ export class DashboardService {
    * Requirements: 9.1, 9.2 - Dashboard with summary cards and data visualization
    */
   async getDashboardData(businessId: string): Promise<DashboardData> {
-    const [summary, recentTransactions, chartData, stockWarnings, stockLevels] = await Promise.all([
-      this.getSummaryCards(businessId),
-      this.getRecentTransactions(businessId, 10),
-      this.getChartData(businessId, 7), // Last 7 days
-      this.getStockWarnings(businessId),
-      this.getStockLevels(businessId)
-    ]);
+    const [summary, recentTransactions, chartData, stockWarnings, stockLevels, topProducts] =
+      await Promise.all([
+        this.getSummaryCards(businessId),
+        this.getRecentTransactions(businessId, 10),
+        this.getChartData(businessId, 7),
+        this.getStockWarnings(businessId),
+        this.getStockLevels(businessId),
+        this.getTopProducts(businessId),
+      ]);
 
     return {
       summary,
       recentTransactions,
       chartData,
       stockWarnings,
-      stockLevels
+      stockLevels,
+      topProducts,
     };
   }
 
@@ -125,33 +146,59 @@ export class DashboardService {
     monthEnd.setDate(0);
     monthEnd.setHours(23, 59, 59, 999);
 
+    // B2 — Période hier
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const yesterdayEnd = new Date(todayStart); // minuit = début de aujourd'hui
+
+    // B2 — 7 derniers jours complets (hors aujourd'hui)
+    const sevenDaysAgo = new Date(todayStart);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
     // Fetch all transactions for the periods
-    const [todayTransactions, weekTransactions, monthTransactions] = await Promise.all([
-      this.transactionRepository.find({
-        where: { businessId, createdAt: Between(todayStart, todayEnd) }
-      }),
-      this.transactionRepository.find({
-        where: { businessId, createdAt: Between(weekStart, weekEnd) }
-      }),
-      this.transactionRepository.find({
-        where: { businessId, createdAt: Between(monthStart, monthEnd) }
-      })
-    ]);
+    const [todayTransactions, weekTransactions, monthTransactions, yesterdayTransactions, last7DaysTransactions] =
+      await Promise.all([
+        this.transactionRepository.find({
+          where: { businessId, createdAt: Between(todayStart, todayEnd) },
+        }),
+        this.transactionRepository.find({
+          where: { businessId, createdAt: Between(weekStart, weekEnd) },
+        }),
+        this.transactionRepository.find({
+          where: { businessId, createdAt: Between(monthStart, monthEnd) },
+        }),
+        this.transactionRepository.find({
+          where: { businessId, createdAt: Between(yesterdayStart, yesterdayEnd) },
+        }),
+        this.transactionRepository.find({
+          where: { businessId, createdAt: Between(sevenDaysAgo, todayStart) },
+        }),
+      ]);
 
     // Calculate totals for each period
     const calculateTotals = (transactions: Transaction[]) => {
       const sales = transactions
-        .filter(t => t.type === TransactionType.SALE)
+        .filter((t) => t.type === TransactionType.SALE)
         .reduce((sum, t) => sum + Number(t.amount), 0);
       const expenses = transactions
-        .filter(t => t.type === TransactionType.EXPENSE)
+        .filter((t) => t.type === TransactionType.EXPENSE)
         .reduce((sum, t) => sum + Number(t.amount), 0);
       return { sales, expenses, profit: sales - expenses };
+    };
+
+    const calcVariation = (current: number, reference: number): number => {
+      if (reference === 0) return current > 0 ? 100 : 0;
+      return Math.round(((current - reference) / reference) * 100);
     };
 
     const todayTotals = calculateTotals(todayTransactions);
     const weekTotals = calculateTotals(weekTransactions);
     const monthTotals = calculateTotals(monthTransactions);
+    const yesterdayTotals = calculateTotals(yesterdayTransactions);
+    const last7DaysTotals = calculateTotals(last7DaysTransactions);
+
+    // Moyenne journalière sur les 7 derniers jours complets
+    const averageLast7Days = Math.round(last7DaysTotals.sales / 7);
 
     return {
       todaySales: todayTotals.sales,
@@ -163,7 +210,12 @@ export class DashboardService {
       monthSales: monthTotals.sales,
       monthExpenses: monthTotals.expenses,
       monthProfit: monthTotals.profit,
-      currency
+      currency,
+      // B2
+      yesterdaySales: yesterdayTotals.sales,
+      variationVsYesterday: calcVariation(todayTotals.sales, yesterdayTotals.sales),
+      averageLast7Days,
+      variationVsAverage: calcVariation(todayTotals.sales, averageLast7Days),
     };
   }
 
@@ -265,7 +317,10 @@ export class DashboardService {
       type: TransactionType;
       amount: number;
       product?: string;
+      quantity?: number;
       description?: string;
+      paymentMethod?: PaymentMethod;
+      creditSale?: { debtorName: string; debtorPhone?: string };
     },
   ): Promise<Transaction> {
     const business = await this.businessRepository.findOne({
@@ -276,13 +331,55 @@ export class DashboardService {
     }
 
     if (data.type === TransactionType.SALE) {
-      return this.transactionService.recordSale(
-        businessId,
-        userId,
-        data.amount,
-        data.product,
-        data.description,
-      );
+      // Sale + stock decrement are atomic: if stock update fails, the transaction is rolled back.
+      const transaction = await this.dataSource.transaction(async (manager) => {
+        const savedTransaction = await this.transactionService.recordSale(
+          businessId,
+          userId,
+          data.amount,
+          data.product,
+          data.description,
+          data.quantity,
+          !!data.creditSale?.debtorName?.trim(),
+          manager,
+          data.paymentMethod,
+        );
+
+        if (data.product?.trim() && data.quantity != null && data.quantity > 0) {
+          await this.stockService.decrementStock(
+            businessId,
+            data.product.trim(),
+            data.quantity,
+            userId,
+            data.amount,
+          );
+        }
+
+        return savedTransaction;
+      });
+
+      // Receivable creation is best-effort: a credit sale is valid even if this secondary
+      // record fails. Log the error loudly so it doesn't go unnoticed.
+      if (data.creditSale?.debtorName?.trim()) {
+        try {
+          await this.receivableService.create(businessId, userId, {
+            debtorName: data.creditSale.debtorName.trim(),
+            debtorPhone: data.creditSale.debtorPhone?.trim(),
+            amount: data.amount,
+            description: data.product
+              ? `${data.product}${data.quantity != null ? ` × ${data.quantity}` : ''}`
+              : data.description,
+          });
+        } catch (err) {
+          this.logger.error(
+            `[createTransaction] Receivable creation failed for transaction ${transaction.id}. ` +
+            `Debtor: ${data.creditSale.debtorName}. Manual reconciliation may be required.`,
+            err,
+          );
+        }
+      }
+
+      return transaction;
     }
     return this.transactionService.recordExpense(
       businessId,
@@ -290,6 +387,7 @@ export class DashboardService {
       data.amount,
       data.product,
       data.description,
+      data.paymentMethod,
     );
   }
 
@@ -679,5 +777,53 @@ export class DashboardService {
       transactionCount: transactions.length,
       topProducts
     };
+  }
+
+  /**
+   * B3 — Top produits par CA sur une période donnée.
+   * Utilise une requête agrégée plutôt qu'un chargement en mémoire pour la performance.
+   */
+  async getTopProducts(
+    businessId: string,
+    period: 'day' | 'week' | 'month' = 'week',
+    limit: number = 5,
+  ): Promise<TopProduct[]> {
+    const now = new Date();
+    let start: Date;
+
+    if (period === 'day') {
+      start = new Date(now);
+      start.setHours(0, 0, 0, 0);
+    } else if (period === 'week') {
+      start = new Date(now);
+      start.setDate(now.getDate() - 7);
+      start.setHours(0, 0, 0, 0);
+    } else {
+      start = new Date(now);
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+    }
+
+    const rows = await this.transactionRepository
+      .createQueryBuilder('t')
+      .select('t.product', 'product')
+      .addSelect('SUM(t.amount)', 'totalRevenue')
+      .addSelect('SUM(COALESCE(t.quantity, 1))', 'totalQuantity')
+      .addSelect('COUNT(t.id)', 'transactionCount')
+      .where('t.businessId = :businessId', { businessId })
+      .andWhere('t.type = :type', { type: TransactionType.SALE })
+      .andWhere('t.product IS NOT NULL')
+      .andWhere('t.createdAt >= :start', { start })
+      .groupBy('t.product')
+      .orderBy('"totalRevenue"', 'DESC')
+      .limit(limit)
+      .getRawMany();
+
+    return rows.map((r) => ({
+      product: r.product,
+      totalRevenue: Number(r.totalRevenue),
+      totalQuantity: Number(r.totalQuantity),
+      transactionCount: Number(r.transactionCount),
+    }));
   }
 }

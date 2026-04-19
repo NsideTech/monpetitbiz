@@ -174,6 +174,19 @@ export class HelpService {
       message += `• "rapport" ou "rapport PDF" - Générer un rapport PDF\n`;
     }
 
+    message += `\n🏦 **CRÉANCES**\n`;
+    message += `• "créance Marie 5000" - Créer une créance de 5000 F pour Marie\n`;
+    message += `• "créances" - Liste des créances ouvertes\n`;
+    message += `• "encaissement Marie 2000" - Enregistrer un paiement\n`;
+    message += `• "encaissement Marie tout" - Soldé la créance\n`;
+
+    message += `\n📋 **PRÊTS**\n`;
+    message += `• "prêt Fournisseur X 50000 15/03/2026" - Créer un prêt\n`;
+    message += `• "prêt microcrédit Caurie 100000 30/04/2026" - Prêt microcrédit\n`;
+    message += `• "prêts" - Liste des prêts ouverts\n`;
+    message += `• "remboursement Fournisseur X 10000" - Enregistrer un remboursement\n`;
+    message += `• "remboursement Fournisseur X tout" - Soldé le prêt\n`;
+
     message += `\n💡 **AIDE SPÉCIALISÉE**\n`;
     message += `• "aide ventes" - Aide sur les ventes\n`;
     message += `• "aide prix" - Aide sur les prix et ajout de produits\n`;

@@ -68,9 +68,27 @@ export const OtpScreen = () => {
         phoneNumber?: string;
       };
       if (result.needsRegistration && result.phoneNumber) {
-        navigation.navigate('RegisterBusiness', {
-          phoneNumber: result.phoneNumber,
-        });
+        Alert.alert(
+          'Nouveau compte',
+          'Ce numéro n\'est pas encore enregistré. Que souhaitez-vous faire ?',
+          [
+            {
+              text: 'Créer une entreprise',
+              onPress: () =>
+                navigation.navigate('RegisterBusiness', {
+                  phoneNumber: result.phoneNumber,
+                }),
+            },
+            {
+              text: 'Rejoindre (code employé)',
+              onPress: () =>
+                navigation.navigate('JoinBusiness', {
+                  phoneNumber: result.phoneNumber,
+                }),
+            },
+            {text: 'Annuler', style: 'cancel'},
+          ],
+        );
         return;
       }
       const auth = result.data;

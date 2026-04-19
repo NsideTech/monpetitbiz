@@ -386,13 +386,12 @@ export class AuthController {
   }
 
   /**
-   * Get business information by business code for employee verification
+   * Get business information by business code OR employee invitation code
    */
   @Get('business/:code')
   @HttpCode(HttpStatus.OK)
   async getBusinessByCode(@Param('code') code: string) {
     try {
-      // Validate code format (6 characters alphanumeric)
       if (!code || code.length !== 6 || !/^[A-Z0-9]+$/i.test(code)) {
         return {
           success: false,
@@ -401,13 +400,25 @@ export class AuthController {
         };
       }
 
-      const result = await this.authService.getBusinessByCode(code);
+      // Try permanent business code first
+      let result = await this.authService.getBusinessByCode(code);
+
+      // If not found, try employee invitation code
+      if (!result) {
+        const inviteLookup = await this.employeeService.lookupByInviteCode(code);
+        if (inviteLookup) {
+          const businessResult = await this.authService.getBusinessByCode(inviteLookup.businessCode);
+          if (businessResult) {
+            result = businessResult;
+          }
+        }
+      }
 
       if (!result) {
         return {
           success: false,
           error: 'BUSINESS_NOT_FOUND',
-          message: 'Code d\'entreprise introuvable. Vérifiez le code avec votre patron.',
+          message: 'Code introuvable ou expiré. Vérifiez le code avec votre patron.',
         };
       }
 
@@ -682,12 +693,43 @@ export class AuthController {
       data: employees.map(emp => ({
         id: emp.id,
         phoneNumber: emp.phoneNumber,
+        employeeName: emp.employeeName,
         role: emp.role,
         language: emp.language,
         isActive: emp.isActive,
         joinedAt: emp.joinedAt,
       })),
       count: employees.length,
+    };
+  }
+
+  /**
+   * Update employee role (Owner only)
+   */
+  @Patch('employees/:phoneNumber')
+  @UseGuards(JwtAuthGuard)
+  async updateEmployeeRole(
+    @Request() req,
+    @Param('phoneNumber') phoneNumber: string,
+    @Body() body: { role: 'seller' | 'manager' },
+  ) {
+    const employee = await this.employeeService.updateEmployeeRole(
+      req.user.businessId,
+      req.user.id,
+      phoneNumber,
+      body.role,
+    );
+
+    return {
+      success: true,
+      data: {
+        id: employee.id,
+        phoneNumber: employee.phoneNumber,
+        employeeName: employee.employeeName,
+        role: employee.role,
+        isActive: employee.isActive,
+      },
+      message: `Rôle mis à jour: ${body.role === 'manager' ? 'Gérant' : 'Vendeur'}`,
     };
   }
 

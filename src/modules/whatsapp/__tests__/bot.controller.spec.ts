@@ -17,6 +17,8 @@ import { SaleSessionService } from '../services/sale-session.service';
 import { InvoiceService } from '../../invoice/invoice.service';
 import { CartCreateHandler } from '../handlers/cart-create-handler';
 import { CartHandlers } from '../handlers/cart-handlers';
+import { ReceivableService } from '../../receivable/receivable.service';
+import { LoanService } from '../../loan/loan.service';
 import { ProcessedMessage } from '../interfaces/webhook.interface';
 import { TransactionType } from '../../transaction/entities/transaction.entity';
 
@@ -131,6 +133,14 @@ describe('BotController', () => {
         {
           provide: CartHandlers,
           useValue: {},
+        },
+        {
+          provide: ReceivableService,
+          useValue: { getSummary: jest.fn(), findAll: jest.fn() },
+        },
+        {
+          provide: LoanService,
+          useValue: { getSummary: jest.fn(), findAll: jest.fn() },
         },
       ],
     }).compile();

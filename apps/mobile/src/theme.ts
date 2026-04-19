@@ -78,6 +78,13 @@ export const theme = {
       shadowRadius: 10,
       elevation: 5,
     },
+    lg: {
+      shadowColor: '#0A3D1F',
+      shadowOffset: {width: 0, height: 6},
+      shadowOpacity: 0.12,
+      shadowRadius: 16,
+      elevation: 8,
+    },
     glow: {
       shadowColor: '#16A34A',
       shadowOffset: {width: 0, height: 0},

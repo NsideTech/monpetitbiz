@@ -8,6 +8,11 @@ import { StockItem } from '../modules/stock/entities/stock-item.entity';
 import { ProductUnit } from '../modules/stock/entities/product-unit.entity';
 import { StockMovement } from '../modules/stock/entities/stock-movement.entity';
 import { ChatMessage } from '../modules/chat/entities/chat-message.entity';
+import { EmployeeCode } from '../modules/auth/entities/employee-code.entity';
+import { Receivable } from '../modules/receivable/entities/receivable.entity';
+import { ReceivablePayment } from '../modules/receivable/entities/receivable-payment.entity';
+import { Loan } from '../modules/loan/entities/loan.entity';
+import { LoanPayment } from '../modules/loan/entities/loan-payment.entity';
 
 // Helper function to parse DATABASE_URL
 function parseDatabaseUrl(url?: string): {
@@ -55,7 +60,7 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
       password: configService.get<string>('DATABASE_PASSWORD') || 'password',
       database: configService.get<string>('DATABASE_NAME') || 'monpetitbiz',
     }),
-    entities: [Business, User, OtpSession, Transaction, StockItem, ProductUnit, StockMovement, ChatMessage],
+    entities: [Business, User, OtpSession, EmployeeCode, Transaction, StockItem, ProductUnit, StockMovement, ChatMessage, Receivable, ReceivablePayment, Loan, LoanPayment],
     migrations: [__dirname + '/../migrations/*{.ts,.js}'],
     synchronize: false, // Always use migrations for schema changes
     logging: configService.get('NODE_ENV') === 'development',

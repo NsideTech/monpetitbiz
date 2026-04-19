@@ -144,3 +144,4 @@ WHATSAPP-*.md
 *.bak
 *.backup
 .vercel
+.agent-workspace/

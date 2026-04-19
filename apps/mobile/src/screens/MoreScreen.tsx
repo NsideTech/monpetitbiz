@@ -11,17 +11,32 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import {useNavigation} from '@react-navigation/native';
+import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {GlassCard} from '../components/GlassCard';
 import {PrimaryButton} from '../components/PrimaryButton';
 import {SectionHeader} from '../components/SectionHeader';
 import {useAuth} from '../auth/auth-context';
 import {fetchBusinessInfo, updateBusinessInfo} from '../api/mobile-api';
 import {BusinessInfo} from '../api/types';
+import {MainStackParamList} from '../navigation/types';
 import {tokenStorage} from '../storage/token-storage';
 import {theme} from '../theme';
 
 const APP_VERSION = '1.0.0';
 const BUILD_NUMBER = '1';
+
+type RoleKey = 'owner' | 'manager' | 'seller';
+
+const PERMISSION_DISPLAY: {key: string; label: string; roles: RoleKey[]}[] = [
+  {key: 'sale', label: 'Enregistrer des ventes', roles: ['owner', 'manager', 'seller']},
+  {key: 'expense', label: 'Enregistrer des dépenses', roles: ['owner', 'manager', 'seller']},
+  {key: 'view_stock', label: 'Voir les produits', roles: ['owner', 'manager', 'seller']},
+  {key: 'manage_stock', label: 'Gérer le stock', roles: ['owner', 'manager']},
+  {key: 'reports', label: 'Voir les rapports', roles: ['owner', 'manager']},
+  {key: 'employees', label: 'Gérer les employés', roles: ['owner']},
+  {key: 'settings', label: "Modifier l'entreprise", roles: ['owner']},
+];
 
 const CURRENCIES = ['XOF'];
 const COUNTRIES = [
@@ -36,6 +51,7 @@ const COUNTRIES = [
 ];
 
 export const MoreScreen = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const {accessToken, profile, setProfile, setAccessToken} = useAuth();
 
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
@@ -232,6 +248,28 @@ export const MoreScreen = () => {
                     ? 'Gérant'
                     : 'Vendeur'}
               </Text>
+            </View>
+
+            <View style={styles.divider} />
+            <Text style={styles.permissionsTitle}>Mes permissions</Text>
+            <View style={styles.permissionsGrid}>
+              {PERMISSION_DISPLAY.map(p => {
+                const granted = p.roles.includes(profile.role);
+                return (
+                  <View key={p.key} style={styles.permissionItem}>
+                    <Text style={styles.permissionIcon}>
+                      {granted ? '✅' : '🔒'}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.permissionLabel,
+                        !granted && styles.permissionDenied,
+                      ]}>
+                      {p.label}
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
           </GlassCard>
         </>
@@ -537,6 +575,35 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: theme.colors.borderLight,
+  },
+  permissionsTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
+  },
+  permissionsGrid: {
+    gap: theme.spacing.xs,
+  },
+  permissionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 5,
+  },
+  permissionIcon: {
+    fontSize: 14,
+  },
+  permissionLabel: {
+    fontSize: 14,
+    color: theme.colors.text,
+  },
+  permissionDenied: {
+    color: theme.colors.textMuted,
+    textDecorationLine: 'line-through',
   },
 
   fieldLabel: {

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { DashboardService } from '../dashboard.service';
 import { Transaction, TransactionType } from '../../transaction/entities/transaction.entity';
 import { StockItem } from '../../stock/entities/stock-item.entity';
@@ -10,6 +10,7 @@ import { StockService } from '../../stock/stock.service';
 import { ProductNormalizerService } from '../../stock/services/product-normalizer.service';
 import { TransactionService } from '../../transaction/transaction.service';
 import { StockMovementService } from '../../stock/services/stock-movement.service';
+import { ReceivableService } from '../../receivable/receivable.service';
 
 describe('DashboardService', () => {
   let service: DashboardService;
@@ -19,9 +20,21 @@ describe('DashboardService', () => {
   let reportService: ReportService;
   let stockService: StockService;
 
+  const mockQueryBuilder = {
+    select: jest.fn().mockReturnThis(),
+    addSelect: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    groupBy: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    getRawMany: jest.fn(),
+  };
+
   const mockTransactionRepository = {
     find: jest.fn(),
     findOne: jest.fn(),
+    createQueryBuilder: jest.fn(() => mockQueryBuilder),
   };
 
   const mockStockRepository = {
@@ -55,6 +68,14 @@ describe('DashboardService', () => {
   const mockStockMovementService = {
     getMovements: jest.fn(),
     recordMovement: jest.fn(),
+  };
+
+  const mockReceivableService = {
+    getSummary: jest.fn().mockResolvedValue({ totalOutstanding: 0, count: 0, overdueCount: 0 }),
+  };
+
+  const mockDataSource = {
+    transaction: jest.fn((cb) => cb({ getRepository: jest.fn(() => mockTransactionRepository) })),
   };
 
   beforeEach(async () => {
@@ -92,6 +113,14 @@ describe('DashboardService', () => {
         {
           provide: StockMovementService,
           useValue: mockStockMovementService,
+        },
+        {
+          provide: ReceivableService,
+          useValue: mockReceivableService,
+        },
+        {
+          provide: DataSource,
+          useValue: mockDataSource,
         },
       ],
     }).compile();
@@ -247,6 +276,142 @@ describe('DashboardService', () => {
       expect(result).toContain('"Date","Type","Montant","Devise","Produit","Description","Utilisateur"');
       expect(result).toContain('pain');
       expect(result).toContain('1000');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // B2 — getSummaryCards : champs comparatifs
+  // ---------------------------------------------------------------------------
+  describe('getSummaryCards — B2 comparative fields', () => {
+    it('should include yesterdaySales, variationVsYesterday, averageLast7Days, variationVsAverage', async () => {
+      const businessId = '123e4567-e89b-12d3-a456-426614174000';
+      mockBusinessRepository.findOne.mockResolvedValue({ id: businessId, currency: 'XOF' });
+      mockTransactionRepository.find.mockResolvedValue([]);
+
+      const result = await service.getSummaryCards(businessId);
+
+      expect(result).toHaveProperty('yesterdaySales');
+      expect(result).toHaveProperty('variationVsYesterday');
+      expect(result).toHaveProperty('averageLast7Days');
+      expect(result).toHaveProperty('variationVsAverage');
+      expect(typeof result.yesterdaySales).toBe('number');
+      expect(typeof result.variationVsYesterday).toBe('number');
+      expect(typeof result.averageLast7Days).toBe('number');
+      expect(typeof result.variationVsAverage).toBe('number');
+    });
+
+    it('should compute variationVsYesterday=100 when yesterday=0 and today>0', async () => {
+      const businessId = '123e4567-e89b-12d3-a456-426614174000';
+      mockBusinessRepository.findOne.mockResolvedValue({ id: businessId, currency: 'XOF' });
+
+      const todaySale = { id: '1', type: TransactionType.SALE, amount: 5000, createdAt: new Date() };
+
+      // 5 calls to find(): today, week, month, yesterday, last7days
+      mockTransactionRepository.find
+        .mockResolvedValueOnce([todaySale]) // today
+        .mockResolvedValueOnce([todaySale]) // week
+        .mockResolvedValueOnce([todaySale]) // month
+        .mockResolvedValueOnce([])          // yesterday (empty)
+        .mockResolvedValueOnce([]);         // last7days (empty)
+
+      const result = await service.getSummaryCards(businessId);
+
+      expect(result.todaySales).toBe(5000);
+      expect(result.yesterdaySales).toBe(0);
+      expect(result.variationVsYesterday).toBe(100);
+    });
+
+    it('should compute variationVsYesterday=0 when both today and yesterday are 0', async () => {
+      const businessId = '123e4567-e89b-12d3-a456-426614174000';
+      mockBusinessRepository.findOne.mockResolvedValue({ id: businessId, currency: 'XOF' });
+      mockTransactionRepository.find.mockResolvedValue([]);
+
+      const result = await service.getSummaryCards(businessId);
+
+      expect(result.variationVsYesterday).toBe(0);
+    });
+
+    it('should compute averageLast7Days as total_last7days / 7', async () => {
+      const businessId = '123e4567-e89b-12d3-a456-426614174000';
+      mockBusinessRepository.findOne.mockResolvedValue({ id: businessId, currency: 'XOF' });
+
+      const saleTxn = { id: '1', type: TransactionType.SALE, amount: 7000, createdAt: new Date() };
+
+      mockTransactionRepository.find
+        .mockResolvedValueOnce([])           // today
+        .mockResolvedValueOnce([])           // week
+        .mockResolvedValueOnce([])           // month
+        .mockResolvedValueOnce([])           // yesterday
+        .mockResolvedValueOnce([saleTxn]);   // last7days — total = 7000
+
+      const result = await service.getSummaryCards(businessId);
+
+      expect(result.averageLast7Days).toBe(Math.round(7000 / 7)); // 1000
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // B3 — getTopProducts
+  // ---------------------------------------------------------------------------
+  describe('getTopProducts', () => {
+    it('should return mapped top products for the week period', async () => {
+      const businessId = '123e4567-e89b-12d3-a456-426614174000';
+      const rawRows = [
+        { product: 'pain', totalRevenue: '15000', totalQuantity: '30', transactionCount: '15' },
+        { product: 'lait', totalRevenue: '8000', totalQuantity: '40', transactionCount: '20' },
+      ];
+
+      mockQueryBuilder.getRawMany.mockResolvedValue(rawRows);
+
+      const result = await service.getTopProducts(businessId, 'week', 5);
+
+      expect(mockTransactionRepository.createQueryBuilder).toHaveBeenCalledWith('t');
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        product: 'pain',
+        totalRevenue: 15000,
+        totalQuantity: 30,
+        transactionCount: 15,
+      });
+      expect(result[1]).toEqual({
+        product: 'lait',
+        totalRevenue: 8000,
+        totalQuantity: 40,
+        transactionCount: 20,
+      });
+    });
+
+    it('should return empty array when no sales with products exist', async () => {
+      const businessId = '123e4567-e89b-12d3-a456-426614174000';
+      mockQueryBuilder.getRawMany.mockResolvedValue([]);
+
+      const result = await service.getTopProducts(businessId, 'day', 5);
+
+      expect(result).toEqual([]);
+    });
+
+    it('should enforce the limit parameter', async () => {
+      const businessId = '123e4567-e89b-12d3-a456-426614174000';
+      mockQueryBuilder.getRawMany.mockResolvedValue([]);
+
+      await service.getTopProducts(businessId, 'month', 3);
+
+      expect(mockQueryBuilder.limit).toHaveBeenCalledWith(3);
+    });
+
+    it('should cast decimal and count strings to numbers', async () => {
+      const businessId = '123e4567-e89b-12d3-a456-426614174000';
+      const rawRows = [
+        { product: 'savon', totalRevenue: '12500.50', totalQuantity: '25', transactionCount: '10' },
+      ];
+      mockQueryBuilder.getRawMany.mockResolvedValue(rawRows);
+
+      const result = await service.getTopProducts(businessId, 'week', 5);
+
+      expect(typeof result[0].totalRevenue).toBe('number');
+      expect(typeof result[0].totalQuantity).toBe('number');
+      expect(typeof result[0].transactionCount).toBe('number');
+      expect(result[0].totalRevenue).toBeCloseTo(12500.5);
     });
   });
 

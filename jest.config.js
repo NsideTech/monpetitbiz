@@ -14,6 +14,17 @@ module.exports = {
     '!src/**/*.d.ts',
     '!src/main.ts',
     '!src/**/*.module.ts',
+    '!src/**/cli/**',
+    '!src/**/migrations/**',
+    '!src/lambda.ts',
   ],
+  coverageThreshold: {
+    global: {
+      branches: 19,
+      functions: 26,
+      lines: 26,
+      statements: 27,
+    },
+  },
   setupFilesAfterEnv: ['<rootDir>/src/test-setup.ts'],
 };

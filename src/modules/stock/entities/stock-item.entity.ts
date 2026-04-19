@@ -31,6 +31,9 @@ export class StockItem {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true, name: 'unit_price' })
   unitPrice: number;
 
+  @Column({ name: 'is_archived', type: 'boolean', default: false })
+  isArchived: boolean;
+
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 

@@ -60,7 +60,7 @@ export class StockService {
     
     // Get all existing products for this business
     const existingStockItems = await this.stockItemRepository.find({
-      where: { businessId }
+      where: { businessId, isArchived: false }
     });
     
     const existingProductNames = existingStockItems.map(item => item.product);
@@ -104,8 +104,10 @@ export class StockService {
         }
       }
 
-      // Delete the stock item
-      await this.stockItemRepository.remove(stockItem);
+      // Archive the stock item instead of physical deletion
+      stockItem.isArchived = true;
+      stockItem.updatedAt = new Date();
+      await this.stockItemRepository.save(stockItem);
 
       // Also delete unit configuration if it exists
       try {
@@ -137,7 +139,7 @@ export class StockService {
     if (product) {
       const normalizedProduct = product.trim().toLowerCase();
       const stockItem = await this.stockItemRepository.findOne({
-        where: { businessId, product: normalizedProduct }
+        where: { businessId, product: normalizedProduct, isArchived: false }
       });
       
       if (!stockItem) {
@@ -149,7 +151,7 @@ export class StockService {
 
     // Requirement 3.3: WHEN l'utilisateur demande "stock" sans préciser de produit THEN le système SHALL retourner la liste de tous les produits avec leurs quantités
     return await this.stockItemRepository.find({
-      where: { businessId },
+      where: { businessId, isArchived: false },
       order: { product: 'ASC' }
     });
   }
@@ -196,7 +198,7 @@ export class StockService {
 
     // Get all existing products for this business
     const existingStockItems = await this.stockItemRepository.find({
-      where: { businessId }
+      where: { businessId, isArchived: false }
     });
     
     const existingProductNames = existingStockItems.map(item => item.product);
@@ -305,7 +307,7 @@ export class StockService {
    */
   async getStockWarnings(businessId: string, warningThreshold: number = 5): Promise<StockWarning[]> {
     const stockItems = await this.stockItemRepository.find({
-      where: { businessId }
+      where: { businessId, isArchived: false }
     });
 
     return stockItems
@@ -380,7 +382,7 @@ export class StockService {
     
     // Get all existing products for this business
     const existingStockItems = await this.stockItemRepository.find({
-      where: { businessId }
+      where: { businessId, isArchived: false }
     });
     
     const existingProductNames = existingStockItems.map(item => item.product);
@@ -479,7 +481,7 @@ export class StockService {
     
     // Get all existing products for this business
     const existingStockItems = await this.stockItemRepository.find({
-      where: { businessId }
+      where: { businessId, isArchived: false }
     });
     
     const existingProductNames = existingStockItems.map(item => item.product);
@@ -689,7 +691,7 @@ export class StockService {
     stockStatus: 'ok' | 'low' | 'out';
   }>> {
     const stockItems = await this.stockItemRepository.find({
-      where: { businessId },
+      where: { businessId, isArchived: false },
       order: { product: 'ASC' }
     });
 
@@ -928,7 +930,7 @@ export class StockService {
 
     // Get all existing products for this business
     const existingStockItems = await this.stockItemRepository.find({
-      where: { businessId }
+      where: { businessId, isArchived: false }
     });
     
     const existingProductNames = existingStockItems.map(item => item.product);
@@ -1166,6 +1168,7 @@ export class StockService {
         where: {
           businessId,
           productCode: code,
+          isArchived: false,
         },
       });
       
@@ -1199,6 +1202,7 @@ export class StockService {
       where: {
         businessId,
         productCode: identifier.toUpperCase(),
+        isArchived: false,
       },
     });
 
@@ -1206,7 +1210,7 @@ export class StockService {
     if (!stockItem) {
       const normalizedName = this.productNormalizer.normalize(identifier);
       const allItems = await this.stockItemRepository.find({
-        where: { businessId },
+        where: { businessId, isArchived: false },
       });
 
       stockItem = allItems.find(

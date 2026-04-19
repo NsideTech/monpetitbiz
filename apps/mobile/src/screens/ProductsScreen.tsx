@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +15,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import {useNavigation, useRoute} from '@react-navigation/native';
+import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {MainStackParamList} from '../navigation/types';
 import {useAuth} from '../auth/auth-context';
 import {
   adjustStock,
@@ -28,11 +31,15 @@ import {Product, StockMovement} from '../api/types';
 import {PrimaryButton} from '../components/PrimaryButton';
 import {GlassCard} from '../components/GlassCard';
 import {theme} from '../theme';
+import {buildProductQrPayload, parseProductQrPayload} from '../utils/product-qr';
+import QRCode from 'react-native-qrcode-svg';
+import {CameraView, useCameraPermissions} from 'expo-camera';
 
 const LOW_STOCK_THRESHOLD = 5;
 
 export const ProductsScreen = () => {
   const {accessToken, profile} = useAuth();
+  const canManageStock = profile?.role === 'owner' || profile?.role === 'manager';
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -48,6 +55,16 @@ export const ProductsScreen = () => {
   const [editPrice, setEditPrice] = useState('');
   const [adjustQuantity, setAdjustQuantity] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [qrModalVisible, setQrModalVisible] = useState(false);
+  const [qrProduct, setQrProduct] = useState<Product | null>(null);
+  const [scannerModalVisible, setScannerModalVisible] = useState(false);
+  const lastScannedRef = useRef<string | null>(null);
+
+  const route = useRoute();
+  const routeParams = route.params as { productId?: string } | undefined;
+  const initialProductId = routeParams?.productId;
+
+  const [permission, requestPermission] = useCameraPermissions();
 
   const loadProducts = useCallback(async () => {
     if (!accessToken || !profile?.businessId) return;
@@ -64,6 +81,67 @@ export const ProductsScreen = () => {
   useEffect(() => {
     void loadProducts();
   }, [loadProducts]);
+
+  useEffect(() => {
+    if (
+      initialProductId &&
+      products.length > 0 &&
+      accessToken &&
+      profile?.businessId
+    ) {
+      const product = products.find((p) => p.id === initialProductId);
+      if (product) {
+        setSelectedProduct(product);
+        setHistoryModalVisible(true);
+        fetchStockMovements(accessToken, profile.businessId, {
+          productId: product.id,
+          limit: 20,
+        })
+          .then(setMovements)
+          .catch(() => setMovements([]));
+      }
+    }
+  }, [initialProductId, products, accessToken, profile?.businessId]);
+
+  const openQrModal = (product: Product) => {
+    setQrProduct(product);
+    setQrModalVisible(true);
+  };
+
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList, 'Products'>>();
+
+  const handleBarcodeScanned = useCallback(
+    ({data}: {data: string}) => {
+      if (lastScannedRef.current === data) return;
+      lastScannedRef.current = data;
+      const payload = parseProductQrPayload(data);
+      if (!payload || !profile?.businessId) return;
+      if (payload.businessId !== profile.businessId) {
+        Alert.alert(
+          'Produit inconnu',
+          "Ce QR code appartient à une autre entreprise. Vous ne pouvez accéder qu'aux produits de votre entreprise.",
+        );
+        return;
+      }
+      setScannerModalVisible(false);
+      lastScannedRef.current = null;
+      navigation.setParams({productId: payload.productId});
+      const product = products.find((p) => p.id === payload.productId);
+      if (product) {
+        setSelectedProduct(product);
+        setHistoryModalVisible(true);
+        fetchStockMovements(accessToken!, profile.businessId, {
+          productId: product.id,
+          limit: 20,
+        })
+          .then(setMovements)
+          .catch(() => setMovements([]));
+      } else {
+        void loadProducts();
+      }
+    },
+    [profile?.businessId, products, accessToken, loadProducts, navigation],
+  );
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -224,12 +302,32 @@ export const ProductsScreen = () => {
     );
   }
 
+  const openScanner = async () => {
+    if (!permission?.granted) {
+      const {granted} = await requestPermission();
+      if (!granted) {
+        Alert.alert(
+          'Permission requise',
+          'MonPetitBiz a besoin d\'accéder à la caméra pour scanner les QR codes.',
+        );
+        return;
+      }
+    }
+    lastScannedRef.current = null;
+    setScannerModalVisible(true);
+  };
+
   return (
     <View style={styles.container}>
       <FlatList
         data={products}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          <Pressable style={styles.scanButton} onPress={openScanner}>
+            <Text style={styles.scanButtonText}>📷 Scanner un QR code produit</Text>
+          </Pressable>
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -242,7 +340,9 @@ export const ProductsScreen = () => {
             <Text style={styles.emptyIcon}>{'📦'}</Text>
             <Text style={styles.emptyText}>Aucun produit</Text>
             <Text style={styles.emptyHint}>
-              Appuyez sur + pour ajouter votre premier produit
+              {canManageStock
+                ? 'Appuyez sur + pour ajouter votre premier produit'
+                : 'Aucun produit enregistré pour le moment'}
             </Text>
           </View>
         }
@@ -256,7 +356,7 @@ export const ProductsScreen = () => {
             />
             <TouchableOpacity
               style={styles.cardBody}
-              onPress={() => openEditModal(item)}
+              onPress={() => canManageStock ? openEditModal(item) : openHistoryModal(item)}
               activeOpacity={0.7}>
               <View style={styles.cardTop}>
                 <View style={styles.cardInfo}>
@@ -294,34 +394,45 @@ export const ProductsScreen = () => {
               </View>
 
               <View style={styles.actionRow}>
-                <TouchableOpacity
-                  style={styles.actionBtn}
-                  onPress={() => openAdjustModal(item)}>
-                  <Text style={styles.actionBtnText}>Ajuster</Text>
-                </TouchableOpacity>
+                {canManageStock && (
+                  <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() => openAdjustModal(item)}>
+                    <Text style={styles.actionBtnText}>Ajuster</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={styles.actionBtn}
                   onPress={() => openHistoryModal(item)}>
                   <Text style={styles.actionBtnText}>Historique</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.deleteBtn}
-                  onPress={() => handleDelete(item)}>
-                  <Text style={styles.deleteBtnText}>Supprimer</Text>
+                  style={styles.actionBtn}
+                  onPress={() => openQrModal(item)}>
+                  <Text style={styles.actionBtnText}>QR</Text>
                 </TouchableOpacity>
+                {canManageStock && (
+                  <TouchableOpacity
+                    style={styles.deleteBtn}
+                    onPress={() => handleDelete(item)}>
+                    <Text style={styles.deleteBtnText}>Supprimer</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </TouchableOpacity>
           </View>
         )}
       />
 
-      {/* FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setAddModalVisible(true)}
-        activeOpacity={0.8}>
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+      {/* FAB - only for owner/manager */}
+      {canManageStock && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setAddModalVisible(true)}
+          activeOpacity={0.8}>
+          <Text style={styles.fabText}>+</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Add Product Modal */}
       <Modal
@@ -543,6 +654,84 @@ export const ProductsScreen = () => {
             />
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* QR Code Modal */}
+      <Modal
+        visible={qrModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setQrModalVisible(false)}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setQrModalVisible(false)}>
+          <Pressable
+            style={[styles.modal, styles.qrModal]}
+            onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>
+              QR code — {qrProduct?.product}
+            </Text>
+            <Text style={styles.qrHint}>
+              Scannez ce QR avec MonPetitBiz pour accéder au produit
+            </Text>
+            {qrProduct && profile?.businessId && (
+              <View style={styles.qrContainer}>
+                <QRCode
+                  value={buildProductQrPayload(profile.businessId, qrProduct.id)}
+                  size={200}
+                  backgroundColor="white"
+                  color={theme.colors.text}
+                />
+              </View>
+            )}
+            <PrimaryButton
+              label="Fermer"
+              onPress={() => {
+                setQrModalVisible(false);
+                setQrProduct(null);
+              }}
+              variant="outline"
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Scanner Modal */}
+      <Modal
+        visible={scannerModalVisible}
+        animationType="slide"
+        onRequestClose={() => setScannerModalVisible(false)}>
+        <View style={styles.scannerContainer}>
+          <View style={styles.scannerHeader}>
+            <Text style={styles.scannerTitle}>Scanner un QR code produit</Text>
+            <Pressable
+              style={styles.scannerClose}
+              onPress={() => setScannerModalVisible(false)}>
+              <Text style={styles.scannerCloseText}>Fermer</Text>
+            </Pressable>
+          </View>
+          {permission?.granted ? (
+            <CameraView
+              style={styles.camera}
+              facing="back"
+              barcodeScannerSettings={{barcodeTypes: ['qr']}}
+              onBarcodeScanned={
+                scannerModalVisible ? handleBarcodeScanned : undefined
+              }
+            />
+          ) : (
+            <View style={styles.scannerPermission}>
+              <Text style={styles.scannerPermissionText}>
+                Autorisez l'accès à la caméra pour scanner les QR codes.
+              </Text>
+              <PrimaryButton
+                label="Autoriser"
+                onPress={() => requestPermission()}
+              />
+            </View>
+          )}
+        </View>
       </Modal>
     </View>
   );
@@ -826,5 +1015,78 @@ const styles = StyleSheet.create({
   historyNewStock: {
     fontSize: 12,
     color: theme.colors.textMuted,
+  },
+
+  scanButton: {
+    backgroundColor: theme.colors.chipBg,
+    borderWidth: 1,
+    borderColor: theme.colors.chipBorder,
+    borderRadius: theme.radii.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    alignItems: 'center',
+  },
+  scanButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+
+  qrModal: {
+    alignItems: 'center',
+  },
+  qrHint: {
+    fontSize: 13,
+    color: theme.colors.textMuted,
+    marginBottom: theme.spacing.lg,
+    textAlign: 'center',
+  },
+  qrContainer: {
+    padding: theme.spacing.lg,
+    backgroundColor: '#FFF',
+    borderRadius: theme.radii.md,
+    marginBottom: theme.spacing.lg,
+  },
+
+  scannerContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  scannerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    paddingTop: 60,
+    backgroundColor: theme.colors.bgCard,
+  },
+  scannerTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  scannerClose: {
+    padding: theme.spacing.sm,
+  },
+  scannerCloseText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  camera: {
+    flex: 1,
+  },
+  scannerPermission: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+    gap: theme.spacing.lg,
+  },
+  scannerPermissionText: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
 });

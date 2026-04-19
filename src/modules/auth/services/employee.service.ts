@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { EmployeeCode } from '../entities/employee-code.entity';
 import { User, UserRole } from '../entities/user.entity';
 import { Business } from '../entities/business.entity';
@@ -87,6 +87,25 @@ export class EmployeeService {
       businessName: creator.business.name,
       expiresAt: savedCode.expiresAt,
       isActive: savedCode.isActive,
+    };
+  }
+
+  /**
+   * Lookup business by employee invitation code (read-only, does not consume the code)
+   */
+  async lookupByInviteCode(code: string): Promise<{ business: Business; businessCode: string } | null> {
+    const employeeCode = await this.employeeCodeRepository.findOne({
+      where: { code: code.toUpperCase(), isActive: true },
+      relations: ['business'],
+    });
+
+    if (!employeeCode || new Date() > employeeCode.expiresAt || employeeCode.usedBy) {
+      return null;
+    }
+
+    return {
+      business: employeeCode.business,
+      businessCode: employeeCode.business.businessCode,
     };
   }
 
@@ -203,10 +222,9 @@ export class EmployeeService {
   }
 
   /**
-   * Get all employees for a business
+   * Get all employees for a business (sellers and managers, not owners)
    */
   async getEmployees(businessId: string, userId: string): Promise<User[]> {
-    // Verify user is business owner
     const user = await this.userRepository.findOne({
       where: { id: userId, businessId, role: UserRole.OWNER }
     });
@@ -216,16 +234,15 @@ export class EmployeeService {
     }
 
     return await this.userRepository.find({
-      where: { businessId, role: UserRole.SELLER },
+      where: { businessId, role: In([UserRole.SELLER, UserRole.MANAGER]) },
       order: { joinedAt: 'DESC' }
     });
   }
 
   /**
-   * Remove an employee from the business
+   * Remove an employee from the business (deactivate for audit trail)
    */
   async removeEmployee(businessId: string, ownerId: string, employeePhoneNumber: string): Promise<void> {
-    // Verify user is business owner
     const owner = await this.userRepository.findOne({
       where: { id: ownerId, businessId, role: UserRole.OWNER }
     });
@@ -234,18 +251,54 @@ export class EmployeeService {
       throw new ForbiddenException('Only business owners can remove employees');
     }
 
-    // Find employee
     const employee = await this.userRepository.findOne({
-      where: { phoneNumber: employeePhoneNumber, businessId, role: UserRole.SELLER }
+      where: {
+        phoneNumber: employeePhoneNumber,
+        businessId,
+        role: In([UserRole.SELLER, UserRole.MANAGER]),
+      }
     });
 
     if (!employee) {
       throw new NotFoundException('Employee not found');
     }
 
-    // Deactivate employee instead of deleting (for audit trail)
     employee.isActive = false;
     await this.userRepository.save(employee);
+  }
+
+  /**
+   * Update employee role (seller <-> manager). Cannot promote to owner.
+   */
+  async updateEmployeeRole(
+    businessId: string,
+    ownerId: string,
+    employeePhoneNumber: string,
+    newRole: 'seller' | 'manager',
+  ): Promise<User> {
+    const owner = await this.userRepository.findOne({
+      where: { id: ownerId, businessId, role: UserRole.OWNER }
+    });
+
+    if (!owner) {
+      throw new ForbiddenException('Only business owners can change employee roles');
+    }
+
+    const employee = await this.userRepository.findOne({
+      where: {
+        phoneNumber: employeePhoneNumber,
+        businessId,
+        role: In([UserRole.SELLER, UserRole.MANAGER]),
+      }
+    });
+
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    const role = newRole === 'manager' ? UserRole.MANAGER : UserRole.SELLER;
+    employee.role = role;
+    return await this.userRepository.save(employee);
   }
 
   /**

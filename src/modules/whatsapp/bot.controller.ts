@@ -19,6 +19,8 @@ import { TransactionType } from '../transaction/entities/transaction.entity';
 import { ReportPeriod } from '../report/dto/report.dto';
 import { CartCreateHandler } from './handlers/cart-create-handler';
 import { CartHandlers } from './handlers/cart-handlers';
+import { ReceivableService } from '../receivable/receivable.service';
+import { LoanService } from '../loan/loan.service';
 
 export interface BotResponse {
   success: boolean;
@@ -49,6 +51,8 @@ export class BotController {
     private readonly invoiceService: InvoiceService,
     private readonly cartCreateHandler: CartCreateHandler,
     private readonly cartHandlers: CartHandlers,
+    private readonly receivableService: ReceivableService,
+    private readonly loanService: LoanService,
   ) { }
 
   /**
@@ -223,6 +227,24 @@ export class BotController {
 
       case 'add_owner':
         return await this.handleAddOwnerCommand(phoneNumber, command, userContext);
+
+      case 'receivable_create':
+        return await this.handleReceivableCreateCommand(phoneNumber, command, userContext);
+
+      case 'receivable_list':
+        return await this.handleReceivableListCommand(phoneNumber, command, userContext);
+
+      case 'receivable_payment':
+        return await this.handleReceivablePaymentCommand(phoneNumber, command, userContext);
+
+      case 'loan_create':
+        return await this.handleLoanCreateCommand(phoneNumber, command, userContext);
+
+      case 'loan_list':
+        return await this.handleLoanListCommand(phoneNumber, command, userContext);
+
+      case 'loan_payment':
+        return await this.handleLoanPaymentCommand(phoneNumber, command, userContext);
 
       case 'help':
         return await this.handleHelpCommand(phoneNumber, command, userContext);
@@ -1379,6 +1401,241 @@ export class BotController {
     }
   }
 
+  private async handleReceivableCreateCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      if (!userContext.businessId || !userContext.userId) {
+        await this.sendErrorMessage(phoneNumber, 'Authentification requise.');
+        return { success: false, message: 'Authentification requise.' };
+      }
+      const receivable = await this.receivableService.create(
+        userContext.businessId,
+        userContext.userId,
+        {
+          debtorName: command.debtorName,
+          amount: command.receivableAmount,
+          description: command.receivableDescription,
+        }
+      );
+      const msg = `✅ Créance enregistrée pour ${receivable.debtorName} : ${this.formatCurrency(Number(receivable.amount))}.\nSolde à recevoir : ${this.formatCurrency(Number(receivable.amount) - Number(receivable.amountPaid))}`;
+      await this.sendSuccessMessage(phoneNumber, msg);
+      return { success: true, message: msg, data: { receivable } };
+    } catch (e: any) {
+      const err = e?.message || "Impossible d'enregistrer la créance.";
+      await this.sendErrorMessage(phoneNumber, err);
+      return { success: false, message: err };
+    }
+  }
+
+  private async handleReceivableListCommand(
+    phoneNumber: string,
+    _command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      if (!userContext.businessId) {
+        await this.sendErrorMessage(phoneNumber, 'Authentification requise.');
+        return { success: false, message: 'Authentification requise.' };
+      }
+      const receivables = await this.receivableService.findAll(userContext.businessId, {
+        limit: 20,
+      });
+      const open = receivables.filter(
+        (r) => Number(r.amount) - Number(r.amountPaid) > 0
+      );
+      if (open.length === 0) {
+        const msg = '📋 Aucune créance ouverte.';
+        await this.sendSuccessMessage(phoneNumber, msg);
+        return { success: true, message: msg };
+      }
+      let msg = `📋 Créances ouvertes (${open.length}) :\n\n`;
+      for (const r of open) {
+        const rest = Number(r.amount) - Number(r.amountPaid);
+        msg += `• ${r.debtorName} : ${this.formatCurrency(rest)}`;
+        if (r.description) msg += ` (${r.description})`;
+        msg += '\n';
+      }
+      await this.sendSuccessMessage(phoneNumber, msg);
+      return { success: true, message: msg };
+    } catch (e: any) {
+      const err = e?.message || 'Impossible de charger les créances.';
+      await this.sendErrorMessage(phoneNumber, err);
+      return { success: false, message: err };
+    }
+  }
+
+  private async handleReceivablePaymentCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      if (!userContext.businessId || !userContext.userId) {
+        await this.sendErrorMessage(phoneNumber, 'Authentification requise.');
+        return { success: false, message: 'Authentification requise.' };
+      }
+      const receivables = await this.receivableService.findByDebtor(
+        userContext.businessId,
+        command.debtorName
+      );
+      const open = receivables.filter(
+        (r) => Number(r.amount) - Number(r.amountPaid) > 0
+      );
+      if (open.length === 0) {
+        const msg = `Aucune créance ouverte pour ${command.debtorName}.`;
+        await this.sendErrorMessage(phoneNumber, msg);
+        return { success: false, message: msg };
+      }
+      const r = open[0];
+      if (command.fullPayment) {
+        await this.receivableService.recordFullPayment(
+          userContext.businessId,
+          r.id,
+          userContext.userId
+        );
+        const msg = `✅ Créance soldée pour ${r.debtorName}.`;
+        await this.sendSuccessMessage(phoneNumber, msg);
+        return { success: true, message: msg };
+      }
+      await this.receivableService.recordPayment(
+        userContext.businessId,
+        r.id,
+        userContext.userId,
+        command.receivableAmount!
+      );
+      const updated = await this.receivableService.findOne(userContext.businessId, r.id);
+      const rest = Number(updated.amount) - Number(updated.amountPaid);
+      const msg = `✅ Paiement de ${this.formatCurrency(command.receivableAmount!)} enregistré pour ${r.debtorName}.\nSolde restant : ${this.formatCurrency(rest)}`;
+      await this.sendSuccessMessage(phoneNumber, msg);
+      return { success: true, message: msg };
+    } catch (e: any) {
+      const err = e?.message || "Impossible d'enregistrer le paiement.";
+      await this.sendErrorMessage(phoneNumber, err);
+      return { success: false, message: err };
+    }
+  }
+
+  private async handleLoanCreateCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      if (!userContext.businessId || !userContext.userId) {
+        await this.sendErrorMessage(phoneNumber, 'Authentification requise.');
+        return { success: false, message: 'Authentification requise.' };
+      }
+      const loan = await this.loanService.create(
+        userContext.businessId,
+        userContext.userId,
+        {
+          lenderName: command.lenderName,
+          loanType: command.loanType || 'supplier',
+          amount: command.loanAmount,
+          dueDate: new Date(command.loanDueDate),
+        }
+      );
+      const msg = `✅ Prêt enregistré chez ${loan.lenderName} : ${this.formatCurrency(Number(loan.amount))}.\nÉchéance : ${new Date(loan.dueDate).toLocaleDateString('fr-FR')}.\nSolde à rembourser : ${this.formatCurrency(Number(loan.amount) - Number(loan.amountPaid))}`;
+      await this.sendSuccessMessage(phoneNumber, msg);
+      return { success: true, message: msg, data: { loan } };
+    } catch (e: any) {
+      const err = e?.message || "Impossible d'enregistrer le prêt.";
+      await this.sendErrorMessage(phoneNumber, err);
+      return { success: false, message: err };
+    }
+  }
+
+  private async handleLoanListCommand(
+    phoneNumber: string,
+    _command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      if (!userContext.businessId) {
+        await this.sendErrorMessage(phoneNumber, 'Authentification requise.');
+        return { success: false, message: 'Authentification requise.' };
+      }
+      const loans = await this.loanService.findAll(userContext.businessId, {
+        limit: 20,
+      });
+      const open = loans.filter(
+        (l) => Number(l.amount) - Number(l.amountPaid) > 0
+      );
+      if (open.length === 0) {
+        const msg = '📋 Aucun prêt ouvert.';
+        await this.sendSuccessMessage(phoneNumber, msg);
+        return { success: true, message: msg };
+      }
+      let msg = `📋 Prêts ouverts (${open.length}) :\n\n`;
+      for (const l of open) {
+        const rest = Number(l.amount) - Number(l.amountPaid);
+        msg += `• ${l.lenderName} : ${this.formatCurrency(rest)}`;
+        if (l.description) msg += ` (${l.description})`;
+        msg += ` — Échéance : ${new Date(l.dueDate).toLocaleDateString('fr-FR')}\n`;
+      }
+      await this.sendSuccessMessage(phoneNumber, msg);
+      return { success: true, message: msg };
+    } catch (e: any) {
+      const err = e?.message || 'Impossible de charger les prêts.';
+      await this.sendErrorMessage(phoneNumber, err);
+      return { success: false, message: err };
+    }
+  }
+
+  private async handleLoanPaymentCommand(
+    phoneNumber: string,
+    command: any,
+    userContext: UserContext
+  ): Promise<BotResponse> {
+    try {
+      if (!userContext.businessId || !userContext.userId) {
+        await this.sendErrorMessage(phoneNumber, 'Authentification requise.');
+        return { success: false, message: 'Authentification requise.' };
+      }
+      const loans = await this.loanService.findByLender(
+        userContext.businessId,
+        command.lenderName
+      );
+      const open = loans.filter(
+        (l) => Number(l.amount) - Number(l.amountPaid) > 0
+      );
+      if (open.length === 0) {
+        const msg = `Aucun prêt ouvert pour ${command.lenderName}.`;
+        await this.sendErrorMessage(phoneNumber, msg);
+        return { success: false, message: msg };
+      }
+      const l = open[0];
+      if (command.fullPayment) {
+        await this.loanService.recordFullPayment(
+          userContext.businessId,
+          l.id,
+          userContext.userId
+        );
+        const msg = `✅ Prêt soldé pour ${l.lenderName}.`;
+        await this.sendSuccessMessage(phoneNumber, msg);
+        return { success: true, message: msg };
+      }
+      await this.loanService.recordPayment(
+        userContext.businessId,
+        l.id,
+        userContext.userId,
+        command.loanAmount!
+      );
+      const updated = await this.loanService.findOne(userContext.businessId, l.id);
+      const rest = Number(updated.amount) - Number(updated.amountPaid);
+      const msg = `✅ Remboursement de ${this.formatCurrency(command.loanAmount!)} enregistré pour ${l.lenderName}.\nSolde restant : ${this.formatCurrency(rest)}`;
+      await this.sendSuccessMessage(phoneNumber, msg);
+      return { success: true, message: msg };
+    } catch (e: any) {
+      const err = e?.message || "Impossible d'enregistrer le remboursement.";
+      await this.sendErrorMessage(phoneNumber, err);
+      return { success: false, message: err };
+    }
+  }
+
   /**
    * Handle help command
    */
@@ -1955,6 +2212,12 @@ export class BotController {
       case 'unit_view':
       case 'unit_history':
       case 'unit_price_view':
+      case 'receivable_create':
+      case 'receivable_list':
+      case 'receivable_payment':
+      case 'loan_create':
+      case 'loan_list':
+      case 'loan_payment':
         // All authenticated users can perform these actions
         return { allowed: true, message: '' };
 

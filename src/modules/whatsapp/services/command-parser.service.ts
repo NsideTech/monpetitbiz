@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 export interface ParsedCommand {
-  type: 'sale' | 'expense' | 'stock' | 'stock_query' | 'product_list' | 'price_set' | 'product_add' | 'balance' | 'report' | 'registration' | 'help' | 'unknown' | 'unit_config' | 'unit_view' | 'unit_stock' | 'unit_price_purchase' | 'unit_price_selling' | 'unit_alert' | 'unit_history' | 'unit_price_view' | 'product_delete' | 'confirm_delete' | 'cart_create' | 'cart_add' | 'cart_remove' | 'cart_view' | 'cart_finalize' | 'cart_cancel' | 'transaction_list' | 'add_owner';
+  type: 'sale' | 'expense' | 'stock' | 'stock_query' | 'product_list' | 'price_set' | 'product_add' | 'balance' | 'report' | 'registration' | 'help' | 'unknown' | 'unit_config' | 'unit_view' | 'unit_stock' | 'unit_price_purchase' | 'unit_price_selling' | 'unit_alert' | 'unit_history' | 'unit_price_view' | 'product_delete' | 'confirm_delete' | 'cart_create' | 'cart_add' | 'cart_remove' | 'cart_view' | 'cart_finalize' | 'cart_cancel' | 'transaction_list' | 'add_owner' | 'receivable_create' | 'receivable_list' | 'receivable_payment' | 'loan_create' | 'loan_list' | 'loan_payment';
   amount?: number;
   quantity?: number; // For sales by quantity (e.g., "vente 10 pain")
   product?: string;
@@ -24,9 +24,16 @@ export interface ParsedCommand {
   // Transaction list fields
   transactionType?: 'sale' | 'expense' | 'all';
   limit?: number;
+  // Payment method
+  paymentMethod?: string;
   // Add owner fields
   newOwnerPhoneNumber?: string;
   newOwnerName?: string;
+  // Receivable fields
+  debtorName?: string;
+  receivableAmount?: number;
+  receivableDescription?: string;
+  fullPayment?: boolean;
 }
 
 export interface LanguagePatterns {
@@ -61,6 +68,12 @@ export interface LanguagePatterns {
     cartCancel: RegExp[];
     transactionList: RegExp[];
     addOwner: RegExp[];
+    receivableCreate: RegExp[];
+    receivableList: RegExp[];
+    receivablePayment: RegExp[];
+    loanCreate: RegExp[];
+    loanList: RegExp[];
+    loanPayment: RegExp[];
 }
 
 @Injectable()
@@ -265,6 +278,37 @@ export class CommandParserService {
       /^(?:dépenses?|depenses?|expenses?)\s+(jour|today|semaine|week|mois|month)$/i,
       /^(?:liste\s+)?(?:dépenses?|depenses?|expenses?)$/i,
     ],
+    receivableCreate: [
+      // Format: créance [nom] [montant] [description?]
+      /^(?:créance|creance|à crédit|a credit)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s*(.*)$/i,
+    ],
+    receivableList: [
+      // Format: créances, créances liste, liste créances
+      /^(?:créances?|creances?|liste créances?)$/i,
+      /^(?:créances?|creances?)\s+liste$/i,
+    ],
+    receivablePayment: [
+      // Format: encaissement [nom] tout
+      /^(?:encaissement|paiement reçu|paiement recu|reçu|recu)\s+(.+?)\s+(?:tout|all|soldé|solde)$/i,
+      // Format: encaissement [nom] [montant]
+      /^(?:encaissement|paiement reçu|paiement recu|reçu|recu)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
+    ],
+    loanCreate: [
+      // Format: prêt microcrédit [nom] [montant] [date]
+      /^(?:prêt|pret|emprunt)\s+(?:microcrédit|microcredit)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})\s*$/i,
+      // Format: prêt [nom] [montant] [date]
+      /^(?:prêt|pret|emprunt)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?\s+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})\s*$/i,
+    ],
+    loanList: [
+      /^(?:prêts?|prets?|emprunts?|liste prêts?|liste prets?)$/i,
+      /^(?:prêts?|prets?|emprunts?)\s+liste$/i,
+    ],
+    loanPayment: [
+      // Format: remboursement [nom] tout
+      /^(?:remboursement|remboursé|rembourse)\s+(.+?)\s+(?:tout|all|soldé|solde)$/i,
+      // Format: remboursement [nom] [montant]
+      /^(?:remboursement|remboursé|rembourse)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:cfa|fcfa|f)?$/i,
+    ],
     addOwner: [
       // Format: ajouter administrateur +226709876543 Fatou Diallo
       /^(?:ajouter|ajout|add)\s+(?:administrateur|admin|propriétaire|proprietaire|owner)\s+(\+?\d{10,15})\s+(.+)$/i,
@@ -420,6 +464,24 @@ export class CommandParserService {
     result = this.tryParseAddOwner(cleanText, patterns);
     if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
 
+    result = this.tryParseReceivablePayment(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseReceivableCreate(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseReceivableList(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseLoanPayment(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseLoanCreate(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
+    result = this.tryParseLoanList(cleanText, patterns);
+    if (result.confidence > 0.5) return { ...result, originalText: text, language: detectedLanguage } as ParsedCommand;
+
     // Fallback: try to extract amount and product for generic parsing
     const fallbackResult = this.tryFallbackParsing(cleanText, patterns);
     return { ...fallbackResult, originalText: text, language: detectedLanguage } as ParsedCommand;
@@ -545,6 +607,7 @@ export class CommandParserService {
           quantity,
           product: product || undefined,
           description: productText.trim() || undefined,
+          paymentMethod: this.detectPaymentMethod(text),
           confidence: (amount || quantity) ? 0.9 : 0.7,
         };
       }
@@ -696,6 +759,7 @@ export class CommandParserService {
           amount,
           product: product || undefined,
           description: descriptionText.trim() || undefined,
+          paymentMethod: this.detectPaymentMethod(text),
           confidence: amount ? 0.9 : 0.7,
         };
       }
@@ -1109,8 +1173,114 @@ export class CommandParserService {
     return { type: 'unknown', confidence: 0 };
   }
 
+  private tryParseReceivableCreate(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.receivableCreate) {
+      const match = text.match(pattern);
+      if (match) {
+        const debtorName = match[1].trim();
+        const amountStr = match[2].replace(',', '.');
+        const amount = parseFloat(amountStr);
+        const description = match[3]?.trim() || undefined;
+        if (debtorName && !isNaN(amount) && amount > 0) {
+          return { type: 'receivable_create', debtorName, receivableAmount: amount, receivableDescription: description, confidence: 0.9 };
+        }
+      }
+    }
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  private tryParseReceivableList(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.receivableList) {
+      if (pattern.test(text)) return { type: 'receivable_list', confidence: 0.9 };
+    }
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  private tryParseReceivablePayment(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.receivablePayment) {
+      const match = text.match(pattern);
+      if (match) {
+        const debtorName = match[1].trim();
+        const fullPayment = /tout|all|soldé|solde/i.test(match[0]);
+        const amount = !fullPayment && match[2] ? parseFloat(match[2].replace(',', '.')) : undefined;
+        if (debtorName && (fullPayment || (amount != null && !isNaN(amount) && amount > 0))) {
+          return { type: 'receivable_payment', debtorName, receivableAmount: amount, fullPayment, confidence: 0.9 };
+        }
+      }
+    }
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  private parseLoanDate(dateStr: string): string | undefined {
+    const s = dateStr.trim();
+    // DD/MM/YYYY or DD-MM-YYYY
+    const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (dmy) {
+      const day = dmy[1].padStart(2, '0');
+      const month = dmy[2].padStart(2, '0');
+      const year = dmy[3].length === 2 ? '20' + dmy[3] : dmy[3];
+      return `${year}-${month}-${day}`;
+    }
+    // YYYY-MM-DD
+    const ymd = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (ymd) {
+      const year = ymd[1];
+      const month = ymd[2].padStart(2, '0');
+      const day = ymd[3].padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    return undefined;
+  }
+
+  private tryParseLoanCreate(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.loanCreate) {
+      const match = text.match(pattern);
+      if (match) {
+        const isMicrocredit = /microcrédit|microcredit/i.test(match[0]);
+        const lenderName = match[1].trim();
+        const amountStr = match[2].replace(',', '.');
+        const amount = parseFloat(amountStr);
+        const dateStr = match[3]?.trim();
+        const loanDueDate = dateStr ? this.parseLoanDate(dateStr) : undefined;
+        if (lenderName && !isNaN(amount) && amount > 0 && loanDueDate) {
+          return {
+            type: 'loan_create',
+            lenderName,
+            loanAmount: amount,
+            loanType: isMicrocredit ? 'microcredit' : 'supplier',
+            loanDueDate,
+            confidence: 0.9,
+          };
+        }
+      }
+    }
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  private tryParseLoanList(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.loanList) {
+      if (pattern.test(text)) return { type: 'loan_list', confidence: 0.9 };
+    }
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  private tryParseLoanPayment(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
+    for (const pattern of patterns.loanPayment) {
+      const match = text.match(pattern);
+      if (match) {
+        const lenderName = match[1].trim();
+        const fullPayment = /tout|all|soldé|solde/i.test(match[0]);
+        const amount = !fullPayment && match[2] ? parseFloat(match[2].replace(',', '.')) : undefined;
+        if (lenderName && (fullPayment || (amount != null && !isNaN(amount) && amount > 0))) {
+          return { type: 'loan_payment', lenderName, loanAmount: amount, fullPayment, confidence: 0.9 };
+        }
+      }
+    }
+    return { type: 'unknown', confidence: 0 };
+  }
+
   /**
-   * Try to parse help command
+   * Try to parse as help command
    */
   private tryParseHelp(text: string, patterns: LanguagePatterns): { type: string; confidence: number;[key: string]: any } {
     for (const pattern of patterns.help) {
@@ -1362,6 +1532,20 @@ export class CommandParserService {
       type: 'unknown',
       confidence: 0,
     };
+  }
+
+  /**
+   * Detect payment method from raw text.
+   * Returns 'mobile_money', 'credit', or 'cash' (default).
+   */
+  private detectPaymentMethod(text: string): string {
+    if (/mobile\s*money|momo|orange\s*money|wave|airtel\s*money/i.test(text)) {
+      return 'mobile_money';
+    }
+    if (/à\s*crédit|a\s*crédit|credit/i.test(text)) {
+      return 'credit';
+    }
+    return 'cash';
   }
 
   /**

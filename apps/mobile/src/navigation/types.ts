@@ -2,18 +2,17 @@ export type AuthStackParamList = {
   Auth: undefined;
   Otp: {phoneNumber: string; devCode?: string};
   RegisterBusiness: {phoneNumber?: string};
+  JoinBusiness: {phoneNumber?: string};
 };
 
 export type MainStackParamList = {
   Dashboard: undefined;
+  Transactions: undefined;
+  Receivables: undefined;
+  Loans: undefined;
+  Products: { productId?: string } | undefined;
+  Reports: undefined;
   Chat: {prefill?: string};
-};
-
-export type RootTabParamList = {
-  HomeTab: undefined;
-  TransactionsTab: undefined;
-  ChatTab: undefined;
-  StockTab: undefined;
-  ReportsTab: undefined;
-  MoreTab: undefined;
+  More: undefined;
+  Employees: undefined;
 };

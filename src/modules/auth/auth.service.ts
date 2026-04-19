@@ -31,6 +31,9 @@ export interface BusinessCreationRequest {
   ownerName: string;
   country?: string;
   language?: string;
+  city?: string;
+  activityType?: string;
+  preferredChannel?: string;
 }
 
 export interface BusinessCreationResult {
@@ -95,9 +98,10 @@ export class AuthService {
       attempts: 0,
     });
 
-    // In a real implementation, you would send the OTP via WhatsApp or SMS
-    // For now, we log it and return it in dev for testing
-    console.log(`OTP for ${cleanPhoneNumber}: ${code}`);
+    // OTP is logged only outside production for local/test use
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`OTP for ${cleanPhoneNumber}: ${code}`);
+    }
 
     return { message: 'OTP sent successfully', code };
   }
@@ -435,7 +439,6 @@ export class AuthService {
       return false;
     }
 
-    // Define permission matrix
     const permissions = {
       [UserRole.OWNER]: [
         'dashboard:read',
@@ -443,10 +446,15 @@ export class AuthService {
         'create_expense',
         'view_reports',
         'manage_stock',
+        'view_stock',
         'view_balance',
         'generate_pdf',
         'manage_users',
         'view_business_code',
+        'view_receivables',
+        'create_receivable',
+        'view_loans',
+        'create_loan',
       ],
       [UserRole.MANAGER]: [
         'dashboard:read',
@@ -454,13 +462,23 @@ export class AuthService {
         'create_expense',
         'view_reports',
         'manage_stock',
+        'view_stock',
         'view_balance',
         'generate_pdf',
+        'view_receivables',
+        'create_receivable',
+        'view_loans',
+        'create_loan',
       ],
       [UserRole.SELLER]: [
         'dashboard:read',
         'create_sale',
-        'manage_stock',
+        'create_expense',
+        'view_stock',
+        'view_receivables',
+        'create_receivable',
+        'view_loans',
+        'create_loan',
       ],
     };
 
@@ -595,6 +613,9 @@ export class AuthService {
       timezone: 'Africa/Dakar', // Default timezone
       ownerName: request.ownerName.trim(),
       country: country,
+      city: request.city ?? null,
+      activityType: request.activityType ?? null,
+      preferredChannel: request.preferredChannel ?? 'whatsapp',
     });
     const savedBusiness = await this.businessRepository.save(business);
 
@@ -691,7 +712,7 @@ export class AuthService {
   async updateBusiness(
     userId: string,
     businessId: string,
-    updates: { name?: string; ownerName?: string; currency?: string; timezone?: string; country?: string },
+    updates: { name?: string; ownerName?: string; currency?: string; timezone?: string; country?: string; city?: string; activityType?: string; preferredChannel?: string },
   ): Promise<Business> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -737,6 +758,18 @@ export class AuthService {
 
     if (updates.country !== undefined) {
       business.country = updates.country.toUpperCase();
+    }
+
+    if (updates.city !== undefined) {
+      business.city = updates.city?.trim() || null;
+    }
+
+    if (updates.activityType !== undefined) {
+      business.activityType = updates.activityType?.trim() || null;
+    }
+
+    if (updates.preferredChannel !== undefined) {
+      business.preferredChannel = updates.preferredChannel.trim();
     }
 
     return await this.businessRepository.save(business);

@@ -186,20 +186,25 @@ export class ReportService {
   ): Promise<ProductPerformance[]> {
     const productMap = new Map<string, ProductPerformance>();
 
-    // Aggregate product data
+    // Aggregate product data (use transaction.quantity when available)
     salesTransactions.forEach(transaction => {
       if (!transaction.product) return;
 
+      const qty = transaction.quantity != null && transaction.quantity > 0
+        ? Number(transaction.quantity)
+        : 1;
+      const amt = Number(transaction.amount) || 0;
+
       const existing = productMap.get(transaction.product);
       if (existing) {
-        existing.revenue += Number(transaction.amount);
+        existing.revenue += amt;
         existing.transactionCount += 1;
-        existing.quantity += 1; // Assuming 1 unit per transaction for simplicity
+        existing.quantity += qty;
       } else {
         productMap.set(transaction.product, {
           product: transaction.product,
-          revenue: Number(transaction.amount),
-          quantity: 1,
+          revenue: amt,
+          quantity: qty,
           transactionCount: 1
         });
       }

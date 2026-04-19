@@ -26,7 +26,14 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "MonPetitBiz a besoin de la caméra pour scanner les QR codes produits.",
+          "barcodeScannerEnabled": true
+        }
+      ]
     ],
     "extra": {
       "apiBaseUrl": "http://192.168.2.131:9000"

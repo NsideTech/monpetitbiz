@@ -49,7 +49,7 @@ export const ReportsScreen = () => {
   }, [loadReport]);
 
   const formatXof = (n: number) =>
-    `${Number(n).toLocaleString('fr-FR')} F`;
+    `${(Number(n) || 0).toLocaleString('fr-FR')} F`;
 
   if (loading && !report) {
     return (
@@ -146,14 +146,19 @@ export const ReportsScreen = () => {
             <View style={styles.topSection}>
               <SectionHeader title="Top produits" />
               {report.topProducts.map((p, i) => (
-                <GlassCard key={p.product} style={styles.topItemCard}>
+                <GlassCard key={`${p.product}-${i}`} style={styles.topItemCard}>
                   <View style={styles.topItem}>
                     <View style={styles.topRankBadge}>
                       <Text style={styles.topRankText}>{i + 1}</Text>
                     </View>
                     <View style={styles.topInfo}>
                       <Text style={styles.topName}>{p.product}</Text>
-                      <Text style={styles.topQty}>{p.quantity} vendus</Text>
+                      <Text style={styles.topQty}>
+                        {(p.quantity ?? 0).toLocaleString('fr-FR')} vendus
+                        {(p.transactionCount ?? 0) > 0 && (
+                          <> · {(p.transactionCount ?? 0)} op.</>
+                        )}
+                      </Text>
                     </View>
                     <Text style={styles.topRevenue}>{formatXof(p.revenue)}</Text>
                   </View>

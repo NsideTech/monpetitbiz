@@ -22,7 +22,10 @@ import { Permissions } from '../auth/decorators/permissions.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../auth/entities/user.entity';
 import { DashboardService } from './dashboard.service';
+import { DailyGoalService } from './services/daily-goal.service';
 import { AuthService } from '../auth/auth.service';
+import { ReceivableService } from '../receivable/receivable.service';
+import { LoanService } from '../loan/loan.service';
 import { 
   GetDashboardDataDto, 
   ExportTransactionDataDto, 
@@ -41,7 +44,10 @@ import { TransactionType } from '../transaction/entities/transaction.entity';
 export class DashboardController {
   constructor(
     private readonly dashboardService: DashboardService,
+    private readonly dailyGoalService: DailyGoalService,
     private readonly authService: AuthService,
+    private readonly receivableService: ReceivableService,
+    private readonly loanService: LoanService,
   ) {}
 
   /**
@@ -108,7 +114,7 @@ export class DashboardController {
    * Requirements: 9.2 - Stock level display with low stock warnings
    */
   @Get(':businessId/stock-warnings')
-  @Permissions('dashboard:read')
+  @Permissions('dashboard:read', 'view_stock')
   async getStockWarnings(
     @Param('businessId', ParseUUIDPipe) businessId: string,
     @Query('threshold') threshold: string = '5',
@@ -130,7 +136,7 @@ export class DashboardController {
    * Get all stock levels (products with prices)
    */
   @Get(':businessId/stock-levels')
-  @Permissions('dashboard:read')
+  @Permissions('dashboard:read', 'view_stock')
   async getStockLevels(
     @Param('businessId', ParseUUIDPipe) businessId: string,
     @CurrentUser() user: User
@@ -212,7 +218,7 @@ export class DashboardController {
    * Get stock movement history (mobile)
    */
   @Get(':businessId/stock-movements')
-  @Permissions('dashboard:read')
+  @Permissions('dashboard:read', 'view_stock')
   async getStockMovements(
     @Param('businessId', ParseUUIDPipe) businessId: string,
     @CurrentUser() user: User,
@@ -342,7 +348,14 @@ export class DashboardController {
   @Permissions('create_sale', 'create_expense')
   async createTransaction(
     @Param('businessId', ParseUUIDPipe) businessId: string,
-    @Body() body: { type: 'sale' | 'expense'; amount: number; product?: string; description?: string },
+    @Body() body: {
+      type: 'sale' | 'expense';
+      amount: number;
+      product?: string;
+      quantity?: number;
+      description?: string;
+      creditSale?: { debtorName: string; debtorPhone?: string };
+    },
     @CurrentUser() user: User
   ) {
     if (user.businessId !== businessId) {
@@ -371,8 +384,259 @@ export class DashboardController {
       type,
       amount: body.amount,
       product: body.product,
+      quantity: body.quantity,
+      description: body.description,
+      creditSale: body.creditSale,
+    });
+  }
+
+  /**
+   * Get receivables summary (total outstanding, count)
+   */
+  @Get(':businessId/receivables-summary')
+  @Permissions('view_receivables')
+  async getReceivablesSummary(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @CurrentUser() user: User,
+  ) {
+    if (user.businessId !== businessId) {
+      throw new BadRequestException('Access denied to this business data');
+    }
+    return await this.receivableService.getSummary(businessId);
+  }
+
+  /**
+   * Get receivables list
+   */
+  @Get(':businessId/receivables')
+  @Permissions('view_receivables')
+  async getReceivables(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @CurrentUser() user: User,
+    @Query('status') status?: 'open' | 'partial' | 'paid' | 'overdue',
+    @Query('limit') limitStr?: string,
+    @Query('offset') offsetStr?: string,
+  ) {
+    if (user.businessId !== businessId) {
+      throw new BadRequestException('Access denied to this business data');
+    }
+    const limit = limitStr ? parseInt(limitStr, 10) : 100;
+    const offset = offsetStr ? parseInt(offsetStr, 10) : 0;
+    return await this.receivableService.findAll(businessId, {
+      status: status || undefined,
+      limit: isNaN(limit) ? 100 : limit,
+      offset: isNaN(offset) ? 0 : offset,
+    });
+  }
+
+  /**
+   * Create a receivable
+   */
+  @Post(':businessId/receivables')
+  @Permissions('create_receivable')
+  async createReceivable(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @Body() body: { debtorName: string; debtorPhone?: string; amount: number; description?: string; dueDate?: string },
+    @CurrentUser() user: User,
+  ) {
+    if (user.businessId !== businessId) {
+      throw new BadRequestException('Access denied to this business data');
+    }
+    return await this.receivableService.create(businessId, user.id, {
+      debtorName: body.debtorName,
+      debtorPhone: body.debtorPhone,
+      amount: body.amount,
+      description: body.description,
+      dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
+    });
+  }
+
+  /**
+   * Get receivable detail
+   */
+  @Get(':businessId/receivables/:id')
+  @Permissions('view_receivables')
+  async getReceivable(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    if (user.businessId !== businessId) {
+      throw new BadRequestException('Access denied to this business data');
+    }
+    return await this.receivableService.findOne(businessId, id);
+  }
+
+  /**
+   * Record a payment on a receivable
+   */
+  @Post(':businessId/receivables/:id/payments')
+  @Permissions('create_receivable')
+  async recordReceivablePayment(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { amount: number; paymentDate?: string; notes?: string },
+    @CurrentUser() user: User,
+  ) {
+    if (user.businessId !== businessId) {
+      throw new BadRequestException('Access denied to this business data');
+    }
+    return await this.receivableService.recordPayment(
+      businessId,
+      id,
+      user.id,
+      body.amount,
+      body.paymentDate ? new Date(body.paymentDate) : undefined,
+      body.notes,
+    );
+  }
+
+  /**
+   * Record full payment (soldé) on a receivable
+   */
+  @Post(':businessId/receivables/:id/payments/full')
+  @Permissions('create_receivable')
+  async recordFullReceivablePayment(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { paymentDate?: string; notes?: string },
+    @CurrentUser() user: User,
+  ) {
+    if (user.businessId !== businessId) {
+      throw new BadRequestException('Access denied to this business data');
+    }
+    return await this.receivableService.recordFullPayment(
+      businessId,
+      id,
+      user.id,
+      body.paymentDate ? new Date(body.paymentDate) : undefined,
+      body.notes,
+    );
+  }
+
+  /**
+   * Get loans summary (total outstanding, count)
+   */
+  @Get(':businessId/loans-summary')
+  @Permissions('view_loans')
+  async getLoansSummary(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @CurrentUser() user: User,
+  ) {
+    if (user.businessId !== businessId) {
+      throw new BadRequestException('Access denied to this business data');
+    }
+    return await this.loanService.getSummary(businessId);
+  }
+
+  /**
+   * Get loans list
+   */
+  @Get(':businessId/loans')
+  @Permissions('view_loans')
+  async getLoans(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @CurrentUser() user: User,
+    @Query('status') status?: 'open' | 'partial' | 'paid' | 'overdue',
+    @Query('limit') limitStr?: string,
+    @Query('offset') offsetStr?: string,
+  ) {
+    if (user.businessId !== businessId) {
+      throw new BadRequestException('Access denied to this business data');
+    }
+    const limit = limitStr ? parseInt(limitStr, 10) : 100;
+    const offset = offsetStr ? parseInt(offsetStr, 10) : 0;
+    return await this.loanService.findAll(businessId, {
+      status: status || undefined,
+      limit: isNaN(limit) ? 100 : limit,
+      offset: isNaN(offset) ? 0 : offset,
+    });
+  }
+
+  /**
+   * Create a loan
+   */
+  @Post(':businessId/loans')
+  @Permissions('create_loan')
+  async createLoan(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @Body() body: { lenderName: string; lenderPhone?: string; loanType: 'supplier' | 'microcredit'; amount: number; dueDate: string; description?: string },
+    @CurrentUser() user: User,
+  ) {
+    if (user.businessId !== businessId) {
+      throw new BadRequestException('Access denied to this business data');
+    }
+    return await this.loanService.create(businessId, user.id, {
+      lenderName: body.lenderName,
+      lenderPhone: body.lenderPhone,
+      loanType: body.loanType,
+      amount: body.amount,
+      dueDate: new Date(body.dueDate),
       description: body.description,
     });
+  }
+
+  /**
+   * Get loan detail
+   */
+  @Get(':businessId/loans/:id')
+  @Permissions('view_loans')
+  async getLoan(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    if (user.businessId !== businessId) {
+      throw new BadRequestException('Access denied to this business data');
+    }
+    return await this.loanService.findOne(businessId, id);
+  }
+
+  /**
+   * Record a payment on a loan
+   */
+  @Post(':businessId/loans/:id/payments')
+  @Permissions('create_loan')
+  async recordLoanPayment(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { amount: number; paymentDate?: string; notes?: string },
+    @CurrentUser() user: User,
+  ) {
+    if (user.businessId !== businessId) {
+      throw new BadRequestException('Access denied to this business data');
+    }
+    return await this.loanService.recordPayment(
+      businessId,
+      id,
+      user.id,
+      body.amount,
+      body.paymentDate ? new Date(body.paymentDate) : undefined,
+      body.notes,
+    );
+  }
+
+  /**
+   * Record full payment (soldé) on a loan
+   */
+  @Post(':businessId/loans/:id/payments/full')
+  @Permissions('create_loan')
+  async recordFullLoanPayment(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { paymentDate?: string; notes?: string },
+    @CurrentUser() user: User,
+  ) {
+    if (user.businessId !== businessId) {
+      throw new BadRequestException('Access denied to this business data');
+    }
+    return await this.loanService.recordFullPayment(
+      businessId,
+      id,
+      user.id,
+      body.paymentDate ? new Date(body.paymentDate) : undefined,
+      body.notes,
+    );
   }
 
   /**
@@ -474,5 +738,62 @@ export class DashboardController {
     }
 
     return await this.dashboardService.getDashboardMetrics(businessId, query.period);
+  }
+
+  /**
+   * B1 — Upsert l'objectif journalier du business
+   */
+  @Post(':businessId/goals')
+  @Permissions('dashboard:read')
+  async upsertGoal(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @Body() body: { targetAmount: number; dayOfWeek?: number },
+    @CurrentUser() user: User,
+  ) {
+    if (user.businessId !== businessId) {
+      throw new BadRequestException('Access denied to this business data');
+    }
+    return this.dailyGoalService.upsertGoal(
+      businessId,
+      body.targetAmount,
+      body.dayOfWeek ?? null,
+    );
+  }
+
+  /**
+   * B1 — Objectif du jour + progression (CA aujourd'hui)
+   */
+  @Get(':businessId/goals/today')
+  @Permissions('dashboard:read')
+  async getTodayGoal(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @CurrentUser() user: User,
+  ) {
+    if (user.businessId !== businessId) {
+      throw new BadRequestException('Access denied to this business data');
+    }
+    const summary = await this.dashboardService.getSummaryCards(businessId);
+    return this.dailyGoalService.getTodayGoalWithProgress(businessId, summary.todaySales);
+  }
+
+  /**
+   * B3 — Top produits par CA sur une période
+   */
+  @Get(':businessId/top-products')
+  @Permissions('dashboard:read')
+  async getTopProducts(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @Query('period') period: 'day' | 'week' | 'month' = 'week',
+    @Query('limit') limit: string = '5',
+    @CurrentUser() user: User,
+  ) {
+    if (user.businessId !== businessId) {
+      throw new BadRequestException('Access denied to this business data');
+    }
+    return this.dashboardService.getTopProducts(
+      businessId,
+      period,
+      Math.min(parseInt(limit, 10) || 5, 20),
+    );
   }
 }

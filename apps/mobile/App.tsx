@@ -1,9 +1,10 @@
-import {useEffect, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 import {ActivityIndicator, StyleSheet, View} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {AppNavigator} from './src/navigation/AppNavigator';
 import {AuthContext} from './src/auth/auth-context';
 import {tokenStorage} from './src/storage/token-storage';
+import {setOnUnauthorized} from './src/api/client';
 import {UserProfile} from './src/api/types';
 
 export default function App() {
@@ -21,9 +22,20 @@ export default function App() {
     void loadToken();
   }, []);
 
+  const logout = useCallback(async () => {
+    await tokenStorage.clear();
+    setProfile(null);
+    setAccessToken(null);
+  }, []);
+
+  useEffect(() => {
+    setOnUnauthorized(() => void logout());
+    return () => setOnUnauthorized(null);
+  }, [logout]);
+
   const authValue = useMemo(
-    () => ({accessToken, setAccessToken, profile, setProfile}),
-    [accessToken, profile],
+    () => ({accessToken, setAccessToken, profile, setProfile, logout}),
+    [accessToken, profile, logout],
   );
 
   if (loading) {

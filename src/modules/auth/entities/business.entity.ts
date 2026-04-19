@@ -29,6 +29,15 @@ export class Business {
   @Column({ name: 'country', type: 'varchar', length: 3, nullable: true })
   country: string;
 
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  city: string | null;
+
+  @Column({ name: 'activity_type', type: 'varchar', length: 50, nullable: true })
+  activityType: string | null; // 'retail' | 'food' | 'craft' | 'service' | 'other'
+
+  @Column({ name: 'preferred_channel', type: 'varchar', length: 20, default: 'whatsapp', nullable: false })
+  preferredChannel: string; // 'whatsapp' | 'mobile' | 'both'
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 

@@ -6,6 +6,12 @@ type RequestOptions = {
   body?: Record<string, unknown>;
 };
 
+let onUnauthorized: (() => void) | null = null;
+
+export const setOnUnauthorized = (handler: (() => void) | null) => {
+  onUnauthorized = handler;
+};
+
 export const apiRequest = async <T>(
   path: string,
   options: RequestOptions = {},
@@ -26,6 +32,11 @@ export const apiRequest = async <T>(
   });
 
   if (!response.ok) {
+    if (response.status === 401 && onUnauthorized) {
+      onUnauthorized();
+      throw new Error('Session expired');
+    }
+
     const errorText = await response.text();
     console.error('[API] Request failed', {
       url,

@@ -106,6 +106,15 @@ export const AuthScreen = () => {
           onPress={handleRegisterBusiness}
           variant="outline"
         />
+
+        <View style={styles.employeeSection}>
+          <Text style={styles.employeeHint}>Vous avez un code employé ?</Text>
+          <PrimaryButton
+            label="Rejoindre une entreprise"
+            onPress={() => navigation.navigate('JoinBusiness', {})}
+            variant="outline"
+          />
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -196,5 +205,14 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  employeeSection: {
+    marginTop: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  employeeHint: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
 });

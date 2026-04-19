@@ -7,6 +7,11 @@ export type AuthVerifyResponse = {
     employeeName: string;
     role: 'owner' | 'manager' | 'seller';
     language: 'fr' | 'wo';
+    business?: {
+      id: string;
+      name: string;
+      businessCode?: string;
+    };
   };
 };
 
@@ -70,7 +75,9 @@ export type Transaction = {
   amount: number;
   currency: string;
   product?: string;
+  quantity?: number;
   description?: string;
+  isCreditSale?: boolean;
   createdAt: string;
 };
 
@@ -108,4 +115,85 @@ export type Product = {
   quantity: number;
   unitPrice: number | string | null;
   productCode: string | null;
+};
+
+export type Employee = {
+  id: string;
+  phoneNumber: string;
+  employeeName: string | null;
+  role: 'seller' | 'manager';
+  isActive: boolean;
+  joinedAt: string | null;
+};
+
+export type EmployeeCode = {
+  code: string;
+  expiresAt: string;
+  isActive: boolean;
+  usedBy: string | null;
+  usedAt: string | null;
+};
+
+export type ReceivableStatus = 'open' | 'partial' | 'paid' | 'overdue';
+
+export type ReceivablePayment = {
+  id: string;
+  amount: number;
+  paymentDate: string;
+  notes?: string;
+  createdAt: string;
+};
+
+export type Receivable = {
+  id: string;
+  debtorName: string;
+  debtorPhone?: string;
+  amount: number;
+  amountPaid: number;
+  currency: string;
+  description?: string;
+  dueDate?: string;
+  status: ReceivableStatus;
+  createdAt: string;
+  updatedAt: string;
+  payments?: ReceivablePayment[];
+};
+
+export type ReceivablesSummary = {
+  totalOutstanding: number;
+  count: number;
+  overdueCount: number;
+};
+
+export type LoanStatus = 'open' | 'partial' | 'paid' | 'overdue';
+export type LoanType = 'supplier' | 'microcredit';
+
+export type LoanPayment = {
+  id: string;
+  amount: number;
+  paymentDate: string;
+  notes?: string;
+  createdAt: string;
+};
+
+export type Loan = {
+  id: string;
+  lenderName: string;
+  lenderPhone?: string;
+  loanType: LoanType;
+  amount: number;
+  amountPaid: number;
+  currency: string;
+  description?: string;
+  dueDate: string;
+  status: LoanStatus;
+  createdAt: string;
+  updatedAt: string;
+  payments?: LoanPayment[];
+};
+
+export type LoansSummary = {
+  totalOutstanding: number;
+  count: number;
+  overdueCount: number;
 };

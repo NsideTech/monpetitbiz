@@ -1,20 +1,24 @@
-import {Platform, StyleSheet, Text, View} from 'react-native';
+import {Pressable, StyleSheet, View} from 'react-native';
 import {NavigationContainer, DefaultTheme} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {AuthScreen} from '../screens/AuthScreen';
 import {OtpScreen} from '../screens/OtpScreen';
 import {RegisterBusinessScreen} from '../screens/RegisterBusinessScreen';
+import {JoinBusinessScreen} from '../screens/JoinBusinessScreen';
 import {DashboardScreen} from '../screens/DashboardScreen';
 import {ChatScreen} from '../screens/ChatScreen';
 import {ProductsScreen} from '../screens/ProductsScreen';
 import {ReportsScreen} from '../screens/ReportsScreen';
 import {TransactionsScreen} from '../screens/TransactionsScreen';
+import {ReceivablesScreen} from '../screens/ReceivablesScreen';
+import {LoansScreen} from '../screens/LoansScreen';
 import {MoreScreen} from '../screens/MoreScreen';
-import {AuthStackParamList, MainStackParamList, RootTabParamList} from './types';
+import {EmployeesScreen} from '../screens/EmployeesScreen';
+import {AuthStackParamList, MainStackParamList} from './types';
 import {useAuth} from '../auth/auth-context';
 import {theme} from '../theme';
+import {DrawerProvider, useDrawer} from '../components/DrawerContext';
+import {AppDrawer} from '../components/AppDrawer';
 
 const AppTheme = {
   ...DefaultTheme,
@@ -47,141 +51,107 @@ const headerOptions = {
 };
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
-const MainStack = createNativeStackNavigator<MainStackParamList>();
-const Tab = createBottomTabNavigator<RootTabParamList>();
+const Stack = createNativeStackNavigator<MainStackParamList>();
 
-const TAB_ICON_SIZE = 26;
+const MenuButton = () => {
+  const {toggle} = useDrawer();
+  return (
+    <Pressable onPress={toggle} style={menuStyles.button} hitSlop={8}>
+      <View style={menuStyles.line} />
+      <View style={[menuStyles.line, menuStyles.lineShort]} />
+      <View style={menuStyles.line} />
+    </Pressable>
+  );
+};
 
-const TabIcon = ({emoji, focused}: {emoji: string; focused: boolean}) => (
-  <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
-    <Text style={[tabStyles.icon, focused && tabStyles.iconActive]}>{emoji}</Text>
-  </View>
-);
+const menuStyles = StyleSheet.create({
+  button: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    gap: 5,
+    marginLeft: 4,
+  },
+  line: {
+    width: 22,
+    height: 2.5,
+    backgroundColor: theme.colors.text,
+    borderRadius: 2,
+  },
+  lineShort: {
+    width: 16,
+  },
+});
 
-const HomeStack = () => (
-  <MainStack.Navigator screenOptions={headerOptions}>
-    <MainStack.Screen
+const MainNavigator = () => (
+  <Stack.Navigator screenOptions={headerOptions}>
+    <Stack.Screen
       name="Dashboard"
       component={DashboardScreen}
-      options={{title: 'MonPetitBiz'}}
+      options={{
+        title: 'Tableau de bord',
+        headerLeft: () => <MenuButton />,
+      }}
     />
-    <MainStack.Screen
+    <Stack.Screen
+      name="Transactions"
+      component={TransactionsScreen}
+      options={{title: 'Ventes et Dépenses'}}
+    />
+    <Stack.Screen
+      name="Receivables"
+      component={ReceivablesScreen}
+      options={{title: 'Créances'}}
+    />
+    <Stack.Screen
+      name="Loans"
+      component={LoansScreen}
+      options={{title: 'Dettes'}}
+    />
+    <Stack.Screen
+      name="Products"
+      component={ProductsScreen}
+      options={{title: 'Produits & Stock'}}
+    />
+    <Stack.Screen
+      name="Reports"
+      component={ReportsScreen}
+      options={{title: 'Rapports'}}
+    />
+    <Stack.Screen
       name="Chat"
       component={ChatScreen}
       options={{title: 'Chatbot'}}
     />
-  </MainStack.Navigator>
-);
-
-const ChatTabStack = createNativeStackNavigator();
-
-const ChatTabScreen = () => (
-  <ChatTabStack.Navigator screenOptions={headerOptions}>
-    <ChatTabStack.Screen
-      name="ChatMain"
-      component={ChatScreen}
-      options={{title: 'Chatbot'}}
+    <Stack.Screen
+      name="More"
+      component={MoreScreen}
+      options={{title: 'Paramètres'}}
     />
-  </ChatTabStack.Navigator>
+    <Stack.Screen
+      name="Employees"
+      component={EmployeesScreen}
+      options={{title: 'Mes employés'}}
+    />
+  </Stack.Navigator>
 );
 
-const TAB_BAR_CONTENT_HEIGHT = 60;
+const AuthenticatedApp = () => (
+  <DrawerProvider>
+    <View style={styles.flex}>
+      <MainNavigator />
+      <AppDrawer />
+    </View>
+  </DrawerProvider>
+);
 
 export const AppNavigator = () => {
   const {accessToken} = useAuth();
-  const insets = useSafeAreaInsets();
-
-  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 8);
 
   return (
     <NavigationContainer theme={AppTheme}>
       {accessToken ? (
-        <Tab.Navigator
-          screenOptions={{
-            tabBarActiveTintColor: theme.colors.primary,
-            tabBarInactiveTintColor: theme.colors.textMuted,
-            tabBarStyle: {
-              backgroundColor: '#FFFFFF',
-              borderTopWidth: 0,
-              paddingTop: 8,
-              paddingBottom: bottomPadding,
-              height: TAB_BAR_CONTENT_HEIGHT + bottomPadding,
-              ...theme.shadows.md,
-              shadowOffset: {width: 0, height: -2},
-            },
-            tabBarItemStyle: {
-              paddingVertical: 4,
-            },
-            tabBarLabelStyle: {
-              fontSize: 11,
-              fontWeight: '600',
-              letterSpacing: 0.3,
-              marginTop: 4,
-            },
-            headerShown: false,
-          }}>
-          <Tab.Screen
-            name="HomeTab"
-            component={HomeStack}
-            options={{
-              tabBarLabel: 'Accueil',
-              tabBarIcon: ({focused}) => <TabIcon emoji="🏠" focused={focused} />,
-            }}
-          />
-          <Tab.Screen
-            name="TransactionsTab"
-            component={TransactionsScreen}
-            options={{
-              tabBarLabel: 'Ventes',
-              headerShown: true,
-              title: 'Ventes et Dépenses',
-              ...headerOptions,
-              tabBarIcon: ({focused}) => <TabIcon emoji="💰" focused={focused} />,
-            }}
-          />
-          <Tab.Screen
-            name="StockTab"
-            component={ProductsScreen}
-            options={{
-              tabBarLabel: 'Stock',
-              headerShown: true,
-              title: 'Stock',
-              ...headerOptions,
-              tabBarIcon: ({focused}) => <TabIcon emoji="📦" focused={focused} />,
-            }}
-          />
-          <Tab.Screen
-            name="ReportsTab"
-            component={ReportsScreen}
-            options={{
-              tabBarLabel: 'Rapports',
-              headerShown: true,
-              title: 'Rapports',
-              ...headerOptions,
-              tabBarIcon: ({focused}) => <TabIcon emoji="📊" focused={focused} />,
-            }}
-          />
-           <Tab.Screen
-            name="ChatTab"
-            component={ChatTabScreen}
-            options={{
-              tabBarLabel: 'Chatbot',
-              headerShown: false,
-              tabBarIcon: ({focused}) => <TabIcon emoji="💬" focused={focused} />,
-            }}
-          />
-          <Tab.Screen
-            name="MoreTab"
-            component={MoreScreen}
-            options={{
-              tabBarLabel: 'Plus',
-              headerShown: true,
-              title: 'Plus',
-              ...headerOptions,
-              tabBarIcon: ({focused}) => <TabIcon emoji="⚙️" focused={focused} />,
-            }}
-          />
-        </Tab.Navigator>
+        <AuthenticatedApp />
       ) : (
         <AuthStack.Navigator screenOptions={headerOptions}>
           <AuthStack.Screen
@@ -199,28 +169,19 @@ export const AppNavigator = () => {
             component={RegisterBusinessScreen}
             options={{title: 'Nouvelle entreprise'}}
           />
+          <AuthStack.Screen
+            name="JoinBusiness"
+            component={JoinBusinessScreen}
+            options={{title: 'Rejoindre une entreprise'}}
+          />
         </AuthStack.Navigator>
       )}
     </NavigationContainer>
   );
 };
 
-const tabStyles = StyleSheet.create({
-  iconWrap: {
-    width: 44,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconWrapActive: {
-    backgroundColor: theme.colors.chipBgActive,
-  },
-  icon: {
-    fontSize: TAB_ICON_SIZE,
-    opacity: 0.45,
-  },
-  iconActive: {
-    opacity: 1,
+const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
   },
 });

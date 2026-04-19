@@ -9,9 +9,15 @@ export class WebhookSecurityService {
 
   constructor(private readonly configService: ConfigService) {
     this.appSecret = this.configService.get<string>('WHATSAPP_APP_SECRET');
-    
+
     if (!this.appSecret) {
-      this.logger.warn('WHATSAPP_APP_SECRET not configured. Webhook signature verification will be skipped.');
+      if (this.configService.get<string>('NODE_ENV') === 'production') {
+        throw new Error(
+          'WHATSAPP_APP_SECRET is required in production. ' +
+          'Set this environment variable before starting the server.',
+        );
+      }
+      this.logger.warn('WHATSAPP_APP_SECRET not configured — webhook signature verification disabled (dev only).');
     }
   }
 

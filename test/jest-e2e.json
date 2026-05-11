@@ -1,0 +1,15 @@
+{
+  "preset": "ts-jest",
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "..",
+  "roots": ["<rootDir>/src"],
+  "testEnvironment": "node",
+  "testMatch": ["**/twilio-e2e.spec.ts"],
+  "transform": {
+    "^.+\\.ts$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "^uuid$": "<rootDir>/src/__mocks__/uuid.js"
+  },
+  "setupFilesAfterEnv": ["<rootDir>/src/test-setup.ts"]
+}

@@ -24,10 +24,10 @@
 - ✅ Base de données PostgreSQL
 - ✅ Intégration Twilio pour WhatsApp
 - ✅ Génération PDF avec Puppeteer
-- ✅ Stockage S3 (AWS)
+- ✅ Stockage PDF (Supabase Storage)
 - ✅ API REST complète avec documentation OpenAPI
 - ✅ Tests unitaires avec Jest
-- ✅ Déploiement Vercel/AWS
+- ✅ Déploiement Vercel
 
 ---
 

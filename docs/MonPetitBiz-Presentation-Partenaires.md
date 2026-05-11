@@ -282,7 +282,7 @@
 ### Intégrations
 - **WhatsApp Business API** : Intégration officielle
 - **Twilio** : Fiabilité des communications
-- **AWS** : Infrastructure mondiale
+- **Vercel & Supabase** : Hébergement API, base PostgreSQL et stockage fichiers
 
 ### Sécurité
 - **Chiffrement end-to-end** : Protection des données

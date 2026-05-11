@@ -57,9 +57,9 @@ if [ ! -f ".vercel/project.json" ]; then
     echo "- TWILIO_WHATSAPP_NUMBER"
     echo "- TWILIO_WEBHOOK_SECRET"
     echo "- JWT_SECRET"
-    echo "- AWS_ACCESS_KEY_ID"
-    echo "- AWS_SECRET_ACCESS_KEY"
-    echo "- AWS_S3_BUCKET"
+    echo "- SUPABASE_URL"
+    echo "- SUPABASE_SERVICE_ROLE_KEY"
+    echo "- SUPABASE_STORAGE_BUCKET (optional, default: reports)"
     echo ""
     read -p "Press Enter after configuring environment variables..."
 else

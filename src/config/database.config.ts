@@ -69,9 +69,9 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
       ? { rejectUnauthorized: false } 
       : false,
     // Connection pool configuration
-    // Optimized for serverless (Vercel/Lambda) vs persistent containers (Render/Railway)
+    // Optimized for Vercel serverless vs persistent containers (Render/Railway)
     extra: (() => {
-      const isServerless = process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME;
+      const isServerless = process.env.VERCEL === '1';
       return {
         // Serverless: 1 connection per function instance
         // Persistent containers: Larger pool for better performance

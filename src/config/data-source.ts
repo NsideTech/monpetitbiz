@@ -13,6 +13,7 @@ import { Receivable } from '../modules/receivable/entities/receivable.entity';
 import { ReceivablePayment } from '../modules/receivable/entities/receivable-payment.entity';
 import { Loan } from '../modules/loan/entities/loan.entity';
 import { LoanPayment } from '../modules/loan/entities/loan-payment.entity';
+import { Notification } from '../modules/notification/entities/notification.entity';
 
 // Load environment variables
 config();
@@ -37,10 +38,15 @@ function parseDatabaseUrl(url?: string) {
   }
 }
 
-// Use DATABASE_URL directly if available (TypeORM supports it natively)
-// Otherwise fall back to individual env vars
-const dbUrl = process.env.DATABASE_URL;
-const isSupabase = dbUrl?.includes('supabase');
+// Prefer explicit migrate/direct URL (Supabase: use "Direct connection" from dashboard
+// when pooler/IPv6 blocks local migration:run).
+const dbUrl =
+  process.env.DATABASE_URL_MIGRATE ||
+  process.env.DIRECT_URL ||
+  process.env.DATABASE_URL;
+const isSupabase =
+  typeof dbUrl === 'string' &&
+  (dbUrl.includes('supabase') || dbUrl.includes('pooler.supabase'));
 const isProduction = process.env.NODE_ENV === 'production';
 
 const configObj: any = {
@@ -54,7 +60,7 @@ const configObj: any = {
     password: process.env.DATABASE_PASSWORD || process.env.DB_PASSWORD || 'password',
     database: process.env.DATABASE_NAME || process.env.DB_NAME || 'monpetitbiz',
   }),
-  entities: [Business, User, OtpSession, EmployeeCode, Transaction, StockItem, ProductUnit, StockMovement, ChatMessage, Receivable, ReceivablePayment, Loan, LoanPayment],
+  entities: [Business, User, OtpSession, EmployeeCode, Transaction, StockItem, ProductUnit, StockMovement, ChatMessage, Receivable, ReceivablePayment, Loan, LoanPayment, Notification],
   migrations: [
     __dirname + '/../database/migrations/*{.ts,.js}',
     __dirname + '/../migrations/*{.ts,.js}'

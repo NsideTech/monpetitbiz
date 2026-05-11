@@ -333,7 +333,7 @@ export class StockService {
     const normalizedProduct = product.trim().toLowerCase();
 
     const existingStock = await this.stockItemRepository.findOne({
-      where: { businessId, product: normalizedProduct }
+      where: { businessId, product: normalizedProduct, isArchived: false }
     });
 
     let result: StockItem;
@@ -442,7 +442,7 @@ export class StockService {
 
     // Find existing stock item or create new one
     let stockItem = await this.stockItemRepository.findOne({
-      where: { businessId, product: normalizedProduct }
+      where: { businessId, product: normalizedProduct, isArchived: false }
     });
 
     if (stockItem) {
@@ -839,7 +839,7 @@ export class StockService {
 
     // Find existing stock item or create new one
     let stockItem = await this.stockItemRepository.findOne({
-      where: { businessId, product: normalizedProduct }
+      where: { businessId, product: normalizedProduct, isArchived: false }
     });
 
     const previousQuantity = stockItem ? stockItem.quantity : 0;

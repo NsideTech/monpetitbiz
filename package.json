@@ -36,17 +36,13 @@
     "test:http": "USE_HTTPS=false node test-https.js",
     "test:twilio": "node test-twilio-webhook.js",
     "test:twilio-webhooks": "node scripts/test-twilio-webhooks.js",
-    "migration:validate": "ts-node src/modules/whatsapp/cli/migration-validator.cli.ts",
-    "deploy:lambda": "npm run build && npx serverless deploy",
-    "remove:lambda": "npx serverless remove"
+    "migration:validate": "ts-node src/modules/whatsapp/cli/migration-validator.cli.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.901.0",
-    "@aws-sdk/s3-request-presigner": "^3.901.0",
     "@nestjs/common": "^11.1.6",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.6",
@@ -55,9 +51,9 @@
     "@nestjs/schedule": "^6.0.1",
     "@nestjs/swagger": "^11.2.0",
     "@nestjs/typeorm": "^11.0.0",
+    "@supabase/supabase-js": "^2.105.4",
     "@types/express": "^5.0.3",
     "@types/uuid": "^9.0.8",
-    "@vendia/serverless-express": "^4.12.6",
     "@vercel/speed-insights": "^1.2.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
@@ -69,13 +65,11 @@
     "swagger-ui-express": "^5.0.1",
     "twilio": "^5.10.3",
     "typeorm": "^0.3.27",
-    "uuid": "^9.0.1",
-    "vercel": "^48.8.2"
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.10",
     "@nestjs/testing": "^11.1.6",
-    "@types/aws-lambda": "^8.10.145",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.7.0",
     "@types/pg": "^8.15.5",
@@ -87,6 +81,7 @@
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.4",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vercel": "^48.8.2"
   }
 }

@@ -43,7 +43,7 @@ A WhatsApp bot designed for micro-businesses in the informal sector in Africa to
 
 - **Backend**: NestJS (Node.js + TypeScript)
 - **Database**: PostgreSQL with TypeORM
-- **File Storage**: AWS S3 (for PDF reports)
+- **File Storage**: Supabase Storage (for PDF reports)
 - **WhatsApp**: Twilio Programmable Messaging SDK (with Meta API fallback)
 - **Frontend**: Next.js (for dashboard)
 - **Authentication**: JWT + OTP
@@ -59,7 +59,7 @@ Before you begin, ensure you have the following installed:
 - **npm** or **yarn** package manager
 - **Twilio Account** ([Setup Guide](https://console.twilio.com/)) - Primary WhatsApp provider
 - **WhatsApp Business Account** (Optional - for Meta API fallback)
-- **AWS Account** (for S3 storage - optional for development)
+- **Supabase project** (optional — for PDF uploads via Storage when not using local-only dev)
 
 ## 🚀 Quick Start
 
@@ -107,11 +107,10 @@ TWILIO_WEBHOOK_SECRET=your_twilio_webhook_secret
 # WHATSAPP_WEBHOOK_VERIFY_TOKEN=your_webhook_verify_token
 # WHATSAPP_APP_SECRET=your_app_secret
 
-# AWS Configuration (Optional for development)
-AWS_ACCESS_KEY_ID=your_aws_access_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret_key
-AWS_REGION=us-east-1
-AWS_S3_BUCKET=your-s3-bucket-name
+# Supabase Storage (optional — PDF reports)
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+SUPABASE_STORAGE_BUCKET=reports
 
 # Application Configuration
 PORT=3000
@@ -495,9 +494,9 @@ For comprehensive troubleshooting information, see the [Database Connection Trou
    - For Meta fallback: Check WHATSAPP_WEBHOOK_VERIFY_TOKEN matches Meta configuration
 
 3. **PDF Generation Fails**
-   - Verify AWS credentials are configured
-   - Check S3 bucket permissions
-   - Ensure bucket exists and is accessible
+   - Verify `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set for uploads
+   - Ensure the Storage bucket exists (`SUPABASE_STORAGE_BUCKET`, default `reports`)
+   - On Vercel, Puppeteer is disabled unless you use an external PDF path; check `DISABLE_PUPPETEER` / `VERCEL`
 
 4. **Message Processing Stuck**
    - Check queue status at `/whatsapp/health`

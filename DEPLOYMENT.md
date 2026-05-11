@@ -49,9 +49,9 @@ postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:6543/postgres?pgbo
 
 **Variables d'environnement optionnelles :**
 - `DISABLE_PUPPETEER=true` - Désactive la génération PDF (recommandé sur Vercel)
-- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET_NAME` - Pour stockage S3 (si disponible)
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET` (optionnel, défaut `reports`) — stockage des PDF dans Supabase Storage
 
-> ⚠️ **Note Puppeteer** : La génération PDF avec Puppeteer n'est pas disponible sur Vercel par défaut. Le système basculera automatiquement vers un rapport texte si la génération PDF échoue. Pour activer Puppeteer, utilisez un service externe ou configurez Chrome Lambda layer.
+> ⚠️ **Note Puppeteer** : La génération PDF avec Puppeteer n'est pas disponible sur Vercel par défaut. Le système basculera automatiquement vers un rapport texte si la génération PDF échoue. Pour des PDF en prod, prévoir un service PDF externe ou un worker avec Chrome dédié.
 
 ### 5. **Configurer Twilio**
 URL du webhook : `https://your-app.vercel.app/whatsapp/webhook`
@@ -74,45 +74,6 @@ vercel rollback
 ```
 
 ---
-
-## Déploiement sur AWS Lambda (API Gateway HTTP API v2)
-
-### Prérequis
-```bash
-npm i -g serverless # ou utilisez npx serverless ...
-```
-
-### Build + Deploy
-```bash
-# Variables d'env requises (exemples)
-export DATABASE_URL=...
-export JWT_SECRET=...
-export TWILIO_ACCOUNT_SID=...
-export TWILIO_AUTH_TOKEN=...
-
-# Déployer
-npm run deploy:lambda
-```
-
-Le handler Lambda est `dist/lambda.handler`. Toutes les routes Nest sont exposées via API Gateway.
-
-### URL Webhook Twilio
-Après déploiement, remplacez l’URL du webhook par:
-```
-https://<votre-api-id>.execute-api.<region>.amazonaws.com/whatsapp/webhook
-```
-
-### Puppeteer/PDF (si utilisé)
-Si la génération PDF est active en prod Lambda, ajoutez un layer Chromium compatible (ex: chrome-aws-lambda) ou basculez la génération PDF sur un job séparé (ECS, Lambda avec layer adapté).
-
-### Maintenance
-```bash
-# Supprimer le déploiement
-npm run remove:lambda
-
-# Voir les endpoints
-npx serverless info
-```
 
 ## Vérification
 

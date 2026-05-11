@@ -34,12 +34,12 @@ export class ConversationStateEntity {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @Column({ name: 'expires_at', type: 'timestamptz', nullable: false })
+  @Column({ name: 'expires_at', nullable: false })
   expiresAt: Date;
 
   @Column({ name: 'timeout_warnings_sent', type: 'integer', default: 0 })
   timeoutWarningsSent: number;
 
-  @Column({ name: 'last_activity_at', type: 'timestamptz', nullable: true })
+  @Column({ name: 'last_activity_at', nullable: true })
   lastActivityAt: Date;
 }

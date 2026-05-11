@@ -2,8 +2,8 @@
 
 ## Contexte projet
 WhatsApp bot NestJS pour micro-entreprises en Afrique.
-Stack: NestJS + TypeScript, PostgreSQL + TypeORM, Twilio, AWS S3, Next.js dashboard.
-Tests: Jest. Deploy: Docker + PM2.
+Stack: NestJS + TypeScript, PostgreSQL (Supabase) + TypeORM, Twilio WhatsApp, Supabase Storage (PDF), Next.js dashboard.
+Tests: Jest. Deploy: Vercel (API) ; Docker/PM2 possible en self-host uniquement.
 
 ## Structure clé
 - src/modules/whatsapp/    → NLP, parsing, queue, bot controller

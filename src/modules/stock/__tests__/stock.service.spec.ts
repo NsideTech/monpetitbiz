@@ -124,7 +124,7 @@ describe('StockService', () => {
 
       expect(result.quantity).toBe(50);
       expect(mockStockItemRepository.findOne).toHaveBeenCalledWith({
-        where: { businessId, product: 'pain' }
+        where: { businessId, product: 'pain', isArchived: false }
       });
     });
 
@@ -202,7 +202,7 @@ describe('StockService', () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual(stockItem);
       expect(mockStockItemRepository.findOne).toHaveBeenCalledWith({
-        where: { businessId, product: 'pain' }
+        where: { businessId, product: 'pain', isArchived: false }
       });
     });
 
@@ -230,7 +230,7 @@ describe('StockService', () => {
 
       expect(result).toHaveLength(2);
       expect(mockStockItemRepository.find).toHaveBeenCalledWith({
-        where: { businessId },
+        where: { businessId, isArchived: false },
         order: { product: 'ASC' }
       });
     });

@@ -127,9 +127,10 @@ WHATSAPP_ACCESS_TOKEN=your_token
 WHATSAPP_PHONE_NUMBER_ID=your_phone_id
 WHATSAPP_WEBHOOK_VERIFY_TOKEN=your_verify_token
 
-# AWS (for PDF reports)
-AWS_ACCESS_KEY_ID=your_aws_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret
+# Supabase Storage (for PDF reports)
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SUPABASE_STORAGE_BUCKET=reports
 ```
 
 ## 📱 Twilio WhatsApp Setup

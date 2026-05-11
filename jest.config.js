@@ -16,7 +16,6 @@ module.exports = {
     '!src/**/*.module.ts',
     '!src/**/cli/**',
     '!src/**/migrations/**',
-    '!src/lambda.ts',
   ],
   coverageThreshold: {
     global: {

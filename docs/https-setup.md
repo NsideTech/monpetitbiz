@@ -105,7 +105,7 @@ server {
 
 ### Option 3: Cloud Load Balancer
 
-Use cloud services like AWS ALB, Google Cloud Load Balancer, or Cloudflare for SSL termination.
+Use a managed edge or load balancer (e.g. Vercel TLS termination, Cloudflare, or a cloud LB) for SSL in production.
 
 ## 🐳 Docker Setup
 

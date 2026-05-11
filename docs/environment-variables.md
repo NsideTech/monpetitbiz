@@ -76,14 +76,15 @@ This document provides a comprehensive reference for all environment variables u
 | `SSL_KEY_PATH` | ❌ | ssl/private-key.pem | Path to SSL private key |
 | `SSL_CERT_PATH` | ❌ | ssl/certificate.pem | Path to SSL certificate |
 
-## AWS Configuration (Optional)
+## Supabase Storage (Optional — PDF reports)
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `AWS_ACCESS_KEY_ID` | ❌ | - | AWS access key for S3 operations |
-| `AWS_SECRET_ACCESS_KEY` | ❌ | - | AWS secret key for S3 operations |
-| `AWS_REGION` | ❌ | us-east-1 | AWS region for S3 bucket |
-| `AWS_S3_BUCKET` | ❌ | - | S3 bucket name for file storage |
+| `SUPABASE_URL` | ❌ | - | Supabase project URL (`https://<ref>.supabase.co`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | ❌ | - | Service role key (server-side only; never expose to clients) |
+| `SUPABASE_STORAGE_BUCKET` | ❌ | `reports` | Storage bucket name for uploaded PDFs |
+
+Create the bucket in Supabase Dashboard → Storage and grant policies appropriate for signed URLs (upload uses the service role).
 
 ## Redis Configuration (Optional)
 
@@ -167,11 +168,10 @@ USE_HTTPS=true
 SSL_KEY_PATH=/etc/ssl/private/app.key
 SSL_CERT_PATH=/etc/ssl/certs/app.crt
 
-# AWS (for PDF reports)
-AWS_ACCESS_KEY_ID=AKIAXXXXXXXXXXXXXXXX
-AWS_SECRET_ACCESS_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-AWS_REGION=us-east-1
-AWS_S3_BUCKET=monpetitbiz-reports-prod
+# Supabase Storage (PDF reports)
+SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_STORAGE_BUCKET=reports
 
 # Logging
 LOG_LEVEL=info

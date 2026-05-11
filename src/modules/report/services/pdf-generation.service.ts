@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import * as puppeteer from 'puppeteer';
 import * as Handlebars from 'handlebars';
 import * as fs from 'fs';
@@ -23,33 +22,33 @@ export interface PDFResult {
     error?: string;
 }
 
+const SIGNED_URL_EXPIRES_SECONDS = 24 * 60 * 60;
+
 @Injectable()
 export class PDFGenerationService {
     private readonly logger = new Logger(PDFGenerationService.name);
-    private s3Client: S3Client;
-    private bucketName: string;
+    private supabase: SupabaseClient | null = null;
+    private storageBucket: string = 'reports';
 
     constructor(private configService: ConfigService) {
-        // Initialize AWS S3 client only if credentials are provided
-        const awsAccessKey = this.configService.get('AWS_ACCESS_KEY_ID');
-        const awsSecretKey = this.configService.get('AWS_SECRET_ACCESS_KEY');
-        
-        if (awsAccessKey && awsSecretKey) {
-            this.s3Client = new S3Client({
-                region: this.configService.get('AWS_REGION', 'us-east-1'),
-                credentials: {
-                    accessKeyId: awsAccessKey,
-                    secretAccessKey: awsSecretKey,
+        const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
+        const serviceRoleKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
+
+        if (supabaseUrl && serviceRoleKey) {
+            this.supabase = createClient(supabaseUrl, serviceRoleKey, {
+                auth: {
+                    persistSession: false,
+                    autoRefreshToken: false,
                 },
             });
-            this.bucketName = this.configService.get('AWS_S3_BUCKET_NAME', 'monpetitbiz-reports');
-            this.logger.log('AWS S3 client initialized for PDF storage');
+            this.storageBucket = this.configService.get<string>('SUPABASE_STORAGE_BUCKET', 'reports');
+            this.logger.log('Supabase Storage initialized for PDF storage');
         } else {
-            this.logger.warn('AWS credentials not found. PDF generation will be disabled or use alternative storage.');
-            // S3 client will remain undefined
+            this.logger.warn(
+                'Supabase Storage not configured (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY). PDF upload disabled.',
+            );
         }
 
-        // Register Handlebars helpers
         this.registerHandlebarsHelpers();
     }
 
@@ -71,49 +70,47 @@ export class PDFGenerationService {
     }
 
     /**
-     * Generate PDF report and upload to S3
+     * Generate PDF report and upload to Supabase Storage
      */
     async generatePDFReport(options: PDFGenerationOptions): Promise<PDFResult> {
         try {
-            // Check if S3 is configured
-            if (!this.s3Client) {
-                this.logger.warn('AWS S3 not configured, PDF generation disabled');
+            if (!this.supabase) {
+                this.logger.warn('Supabase Storage not configured, PDF generation disabled');
                 return {
                     success: false,
-                    error: 'PDF generation requires AWS S3 configuration (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_BUCKET_NAME)'
+                    error:
+                        'PDF generation requires Supabase Storage (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and optional SUPABASE_STORAGE_BUCKET)',
                 };
             }
 
             this.logger.log(`Generating PDF report for business ${options.businessId}`);
 
-            // Generate PDF buffer
             const pdfBuffer = await this.generatePDFBuffer(options);
 
-            // Upload to S3
             const fileName = this.generateFileName(options.businessId, options.reportData.period);
-            const s3Url = await this.uploadToS3(pdfBuffer, fileName);
+            const signedUrl = await this.uploadPdfToSupabaseStorage(pdfBuffer, fileName);
 
             this.logger.log(`PDF report generated successfully: ${fileName}`);
 
             return {
                 success: true,
-                url: s3Url,
-                fileName
+                url: signedUrl,
+                fileName,
             };
         } catch (error) {
             this.logger.error(`Failed to generate PDF report: ${error.message}`, error.stack);
-            
-            // On Vercel or if Puppeteer is disabled, return helpful error message
+
             if (process.env.VERCEL === '1' || process.env.DISABLE_PUPPETEER === 'true') {
                 return {
                     success: false,
-                    error: 'PDF generation is not available on this platform. Please use an external PDF service or configure Puppeteer with Chrome Lambda layer.'
+                    error:
+                        'PDF generation is not available on this platform. Use an external PDF service or run PDF generation on an environment with Chrome/Puppeteer.',
                 };
             }
-            
+
             return {
                 success: false,
-                error: error.message
+                error: error.message,
             };
         }
     }
@@ -122,42 +119,38 @@ export class PDFGenerationService {
      * Generate PDF buffer using Puppeteer
      */
     private async generatePDFBuffer(options: PDFGenerationOptions): Promise<Buffer> {
-        // Check if Puppeteer is disabled (e.g., on Vercel)
         const puppeteerDisabled = process.env.DISABLE_PUPPETEER === 'true' || process.env.VERCEL === '1';
-        
+
         if (puppeteerDisabled) {
-            throw new Error('PDF generation is disabled on this platform. Use a serverless PDF service or enable Puppeteer.');
+            throw new Error(
+                'PDF generation is disabled on this platform. Use a serverless PDF service or enable Puppeteer.',
+            );
         }
 
         let browser: puppeteer.Browser | null = null;
 
         try {
-            // Launch browser with Vercel-compatible options
-            const launchOptions: any = {
+            const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
                 headless: true,
                 args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
                     '--disable-gpu',
-                    '--single-process'
-                ]
+                    '--single-process',
+                ],
             };
 
-            // For Vercel/serverless environments
-            if (process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-                // Try to use Chrome from layer or fallback
-                launchOptions.executablePath = process.env.CHROME_EXECUTABLE_PATH;
+            if (process.env.VERCEL === '1') {
+                (launchOptions as { executablePath?: string }).executablePath = process.env.CHROME_EXECUTABLE_PATH;
             }
 
             browser = await puppeteer.launch(launchOptions);
 
             const page = await browser.newPage();
 
-            // Generate HTML content
             const htmlContent = await this.generateHTMLContent(options);
 
-            // Set content and generate PDF
             await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
             const pdfBuffer = await page.pdf({
@@ -167,14 +160,13 @@ export class PDFGenerationService {
                     top: '20mm',
                     right: '15mm',
                     bottom: '20mm',
-                    left: '15mm'
-                }
+                    left: '15mm',
+                },
             });
 
             return Buffer.from(pdfBuffer);
         } catch (error) {
             this.logger.warn(`Puppeteer PDF generation failed: ${error.message}`);
-            // Re-throw to be handled by caller
             throw error;
         } finally {
             if (browser) {
@@ -193,7 +185,6 @@ export class PDFGenerationService {
     private async generateHTMLContent(options: PDFGenerationOptions): Promise<string> {
         const templatePath = path.join(__dirname, '../templates', 'report-template.hbs');
 
-        // Check if template exists, if not create a default one
         if (!fs.existsSync(templatePath)) {
             await this.createDefaultTemplate();
         }
@@ -201,7 +192,6 @@ export class PDFGenerationService {
         const templateSource = fs.readFileSync(templatePath, 'utf8');
         const template = Handlebars.compile(templateSource);
 
-        // Prepare template data
         const templateData = this.prepareTemplateData(options);
 
         return template(templateData);
@@ -216,31 +206,34 @@ export class PDFGenerationService {
         return {
             business: {
                 name: business.name,
-                currency: business.currency || 'XOF'
+                currency: business.currency || 'XOF',
             },
             report: {
                 ...reportData,
                 formattedTotalSales: this.formatCurrency(reportData.totalSales, business.currency),
                 formattedTotalExpenses: this.formatCurrency(reportData.totalExpenses, business.currency),
                 formattedNetProfit: this.formatCurrency(reportData.netProfit, business.currency),
-                profitMargin: reportData.totalSales > 0
-                    ? ((reportData.netProfit / reportData.totalSales) * 100).toFixed(1)
-                    : '0',
+                profitMargin:
+                    reportData.totalSales > 0
+                        ? ((reportData.netProfit / reportData.totalSales) * 100).toFixed(1)
+                        : '0',
                 generatedAt: new Date().toLocaleDateString('fr-FR', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',
                     hour: '2-digit',
-                    minute: '2-digit'
-                })
+                    minute: '2-digit',
+                }),
             },
-            topProducts: reportData.topProducts?.map(product => ({
-                ...product,
-                formattedRevenue: this.formatCurrency(product.revenue, business.currency),
-                averagePrice: product.quantity > 0
-                    ? this.formatCurrency(product.revenue / product.quantity, business.currency)
-                    : '0'
-            })) || []
+            topProducts:
+                reportData.topProducts?.map((product) => ({
+                    ...product,
+                    formattedRevenue: this.formatCurrency(product.revenue, business.currency),
+                    averagePrice:
+                        product.quantity > 0
+                            ? this.formatCurrency(product.revenue / product.quantity, business.currency)
+                            : '0',
+                })) || [],
         };
     }
 
@@ -252,59 +245,45 @@ export class PDFGenerationService {
             style: 'currency',
             currency: currency,
             minimumFractionDigits: 0,
-            maximumFractionDigits: 0
+            maximumFractionDigits: 0,
         }).format(amount);
     }
 
     /**
-     * Upload PDF to S3 and return signed URL
-     * Includes response-content-type parameter to ensure Twilio receives proper Content-Type header
+     * Upload PDF to Supabase Storage and return a signed download URL (Twilio-friendly Content-Type from upload metadata).
      */
-    private async uploadToS3(pdfBuffer: Buffer, fileName: string): Promise<string> {
-        if (!this.s3Client) {
-            throw new Error('S3 client not initialized. AWS credentials are required.');
+    private async uploadPdfToSupabaseStorage(pdfBuffer: Buffer, fileName: string): Promise<string> {
+        if (!this.supabase) {
+            throw new Error('Supabase client not initialized.');
         }
 
-        const key = `reports/${fileName}`;
+        const objectPath = `reports/${fileName}`;
 
-        const command = new PutObjectCommand({
-            Bucket: this.bucketName,
-            Key: key,
-            Body: pdfBuffer,
-            ContentType: 'application/pdf',
-            ContentDisposition: `attachment; filename="${fileName}"`,
-            // Set expiration for 30 days
-            Expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            // Ensure metadata is set for proper Content-Type
-            Metadata: {
-                'content-type': 'application/pdf'
-            }
+        const { error: uploadError } = await this.supabase.storage.from(this.storageBucket).upload(objectPath, pdfBuffer, {
+            contentType: 'application/pdf',
+            upsert: true,
+            cacheControl: '3600',
         });
 
-        await this.s3Client.send(command);
-
-        // Generate signed URL valid for 24 hours
-        // Include response-content-type parameter to force correct Content-Type header
-        // This is required for Twilio to properly process the media URL
-        const getCommand = new GetObjectCommand({
-            Bucket: this.bucketName,
-            Key: key,
-            ResponseContentType: 'application/pdf',
-            ResponseContentDisposition: `attachment; filename="${fileName}"`
-        });
-
-        let signedUrl = await getSignedUrl(this.s3Client, getCommand, { expiresIn: 24 * 60 * 60 });
-        
-        // Ensure response-content-type parameter is in the URL for Twilio compatibility
-        // Some AWS SDK versions may not include it properly, so we add it manually if missing
-        if (!signedUrl.includes('response-content-type')) {
-            const separator = signedUrl.includes('?') ? '&' : '?';
-            signedUrl = `${signedUrl}${separator}response-content-type=application%2Fpdf`;
+        if (uploadError) {
+            throw new Error(`Supabase Storage upload failed: ${uploadError.message}`);
         }
-        
-        this.logger.debug(`Generated S3 signed URL for ${fileName} with Content-Type: application/pdf`);
-        
-        return signedUrl;
+
+        const { data, error: signError } = await this.supabase.storage
+            .from(this.storageBucket)
+            .createSignedUrl(objectPath, SIGNED_URL_EXPIRES_SECONDS);
+
+        if (signError) {
+            throw new Error(`Supabase signed URL failed: ${signError.message}`);
+        }
+
+        if (!data?.signedUrl) {
+            throw new Error('Supabase signed URL returned empty URL');
+        }
+
+        this.logger.debug(`Generated Supabase signed URL for ${fileName} (expires in ${SIGNED_URL_EXPIRES_SECONDS}s)`);
+
+        return data.signedUrl;
     }
 
     /**
@@ -323,7 +302,6 @@ export class PDFGenerationService {
         const templateDir = path.join(__dirname, '../templates');
         const templatePath = path.join(templateDir, 'report-template.hbs');
 
-        // Create templates directory if it doesn't exist
         if (!fs.existsSync(templateDir)) {
             fs.mkdirSync(templateDir, { recursive: true });
         }

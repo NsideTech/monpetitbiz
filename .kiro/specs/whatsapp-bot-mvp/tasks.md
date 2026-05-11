@@ -3,7 +3,7 @@
 - [x] 1. Set up project structure and core configuration
   - Create NestJS project with TypeScript configuration
   - Set up PostgreSQL database connection with TypeORM
-  - Configure environment variables for WhatsApp API, database, and AWS
+  - Configure environment variables for WhatsApp API, database, and Supabase (DB + Storage)
   - Create basic project structure (modules, services, controllers)
   - _Requirements: 10.1, 10.2, 10.3_
 
@@ -49,8 +49,9 @@
   - Test regex patterns for different command variations
   - Test multilingual command recognition
   - Test amount and product extraction accuracy
-  - _Requirements: 1.1, 1.4, 2.1, 2.4, 8.1, 8.2, 8.3_- [ ] 6. C
-reate transaction management services
+  - _Requirements: 1.1, 1.4, 2.1, 2.4, 8.1, 8.2, 8.3_
+
+- [ ] 6. Create transaction management services
   - Build TransactionService for recording sales and expenses
   - Implement data validation and business rules
   - Create transaction history retrieval with filtering
@@ -92,13 +93,13 @@ reate transaction management services
 - [x] 9. Create PDF report generation system
   - Set up PDF generation library (puppeteer or similar)
   - Design PDF template with business branding
-  - Implement PDF generation service with S3 upload
+  - Implement PDF generation service with Supabase Storage upload
   - Create PDF sharing via WhatsApp document message
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
 - [ ]* 9.1 Write unit tests for PDF generation
   - Test PDF template rendering with sample data
-  - Test S3 upload and URL generation
+  - Test Storage upload and signed URL generation
   - Test error handling for PDF generation failures
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
 

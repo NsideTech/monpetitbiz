@@ -42,10 +42,6 @@ docs/
 # Scripts (keep only necessary ones)
 scripts/
 
-# Infrastructure
-infra/
-serverless.yml
-
 # Environment files (use Vercel env vars instead)
 .env
 .env.local

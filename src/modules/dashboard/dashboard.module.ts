@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DashboardService } from './dashboard.service';
 import { DashboardController } from './dashboard.controller';
@@ -16,6 +16,7 @@ import { AuthModule } from '../auth/auth.module';
 import { TransactionModule } from '../transaction/transaction.module';
 import { ReceivableModule } from '../receivable/receivable.module';
 import { LoanModule } from '../loan/loan.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { LoanModule } from '../loan/loan.module';
     TransactionModule,
     ReceivableModule,
     LoanModule,
+    forwardRef(() => NotificationModule),
   ],
   providers: [DashboardService, DailyGoalService],
   controllers: [DashboardController, AdminDashboardController, AdminStatsController],

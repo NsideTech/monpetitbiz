@@ -15,7 +15,7 @@ graph TB
     WH --> NLP[Natural Language Processor]
     NLP --> BL[Business Logic Layer]
     BL --> DB[(PostgreSQL)]
-    BL --> S3[AWS S3 - PDF Storage]
+    BL --> ST[Supabase Storage - PDF]
     
     WEB[Web Dashboard] --> AUTH[Authentication Service]
     AUTH --> API[REST API]
@@ -29,12 +29,12 @@ graph TB
 ### Stack Technique
 
 - **Backend**: NestJS (Node.js + TypeScript)
-- **Base de données**: PostgreSQL (AWS RDS)
-- **Stockage fichiers**: AWS S3
-- **WhatsApp**: Meta Cloud API (gratuit jusqu'à 1000 conversations/mois)
+- **Base de données**: PostgreSQL (Supabase)
+- **Stockage fichiers**: Supabase Storage (PDF)
+- **WhatsApp**: Twilio (Meta Cloud API en option / fallback selon config)
 - **Frontend**: Next.js avec authentification JWT
-- **Déploiement**: AWS ECS ou Heroku pour simplicité MVP
-- **Monitoring**: CloudWatch + Sentry pour error tracking
+- **Déploiement**: Vercel (API Nest)
+- **Monitoring**: logs Vercel + Sentry (optionnel)
 
 ## Components and Interfaces
 
@@ -152,7 +152,7 @@ interface BalanceReport {
 
 class ReportService {
   generateDailyReport(businessId: string): Promise<BalanceReport>;
-  generatePDFReport(businessId: string, period: Period): Promise<string>; // S3 URL
+  generatePDFReport(businessId: string, period: Period): Promise<string>; // signed storage URL
   scheduleAutomaticReports(): void;
 }
 ```

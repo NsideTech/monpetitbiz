@@ -11,7 +11,7 @@ Permettre de générer une facture pour chaque transaction (vente ou dépense) e
 - **Transaction** : `id`, `type` (sale/expense), `amount`, `currency`, `product`, `quantity`, `description`, `isCreditSale`, `createdAt`
 - **TransactionsScreen** : modale détail par transaction, pas d’action « Facture »
 - **InvoiceService** (backend) : conçu pour les sessions de vente WhatsApp (panier), pas pour une transaction isolée
-- **PDFGenerationService** : rapports financiers (bilan période), Puppeteer + S3
+- **PDFGenerationService** : rapports financiers (bilan période), Puppeteer + Supabase Storage
 - **Partage** : aucune API de partage côté mobile
 
 ---
@@ -64,7 +64,7 @@ flowchart LR
 
 | Étape | Techno | Description |
 |-------|--------|-------------|
-| 1. Endpoint | `GET /dashboard/:businessId/invoices/:transactionId` | Retourne PDF ou URL signée S3 |
+| 1. Endpoint | `GET /dashboard/:businessId/invoices/:transactionId` | Retourne PDF ou URL signée (Supabase Storage) |
 | 2. Service | Nouveau `TransactionInvoiceService` | Template Handlebars (comme report) |
 | 3. Mobile | `fetch` + `expo-sharing` | Télécharger le PDF puis partager |
 

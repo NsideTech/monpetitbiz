@@ -5,7 +5,7 @@ This module provides PDF report generation functionality for the WhatsApp Bot MV
 ## Features
 
 - **PDF Generation**: Creates professional PDF reports using Puppeteer and Handlebars templates
-- **AWS S3 Integration**: Uploads PDFs to S3 and generates signed URLs for sharing
+- **Supabase Storage**: Uploads PDFs to a Supabase bucket and returns time-limited signed URLs
 - **WhatsApp Integration**: Sends PDF documents directly via WhatsApp
 - **Customizable Templates**: Uses Handlebars templates for flexible report layouts
 - **Error Handling**: Graceful fallback to text reports if PDF generation fails
@@ -18,7 +18,7 @@ This module provides PDF report generation functionality for the WhatsApp Bot MV
 Main service responsible for:
 - Generating PDF reports from business data
 - Managing Handlebars templates
-- Uploading PDFs to AWS S3
+- Uploading PDFs to Supabase Storage
 - Creating signed URLs for secure access
 
 ### Report Templates
@@ -99,25 +99,21 @@ Content-Type: application/json
 ### Environment Variables
 
 ```bash
-# AWS S3 Configuration
-AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_S3_BUCKET_NAME=your-bucket-name
+# Supabase Storage (server only — use service role, never the anon key in the API)
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SUPABASE_STORAGE_BUCKET=reports
 
 # WhatsApp API (for document sending)
 WHATSAPP_ACCESS_TOKEN=your_token
 WHATSAPP_PHONE_NUMBER_ID=your_phone_id
 ```
 
-### AWS S3 Setup
+### Supabase Storage setup
 
-1. Create an S3 bucket for storing PDF reports
-2. Configure bucket permissions for public read access to signed URLs
-3. Set up IAM user with S3 permissions:
-   - `s3:PutObject`
-   - `s3:GetObject`
-   - `s3:DeleteObject`
+1. In Supabase Dashboard → **Storage**, create a bucket (e.g. `reports`, or match `SUPABASE_STORAGE_BUCKET`).
+2. Policies: uploads use the **service role** from the backend; restrict public access and rely on **signed URLs** for downloads (e.g. Twilio media).
+3. Never expose `SUPABASE_SERVICE_ROLE_KEY` to clients or commit it to the repository.
 
 ### Template Customization
 
@@ -157,7 +153,7 @@ The PDF template can be customized by editing `report-template.hbs`:
 The service implements multiple fallback mechanisms:
 
 1. **PDF Generation Failure**: Falls back to text-based reports
-2. **S3 Upload Failure**: Returns error with detailed message
+2. **Storage upload failure**: Returns error with detailed message from Supabase
 3. **WhatsApp Send Failure**: Logs error and notifies user
 4. **Template Missing**: Creates default template automatically
 
@@ -173,13 +169,11 @@ npm test -- --testPathPattern="pdf-generation.service.spec.ts"
 
 - **puppeteer**: PDF generation from HTML
 - **handlebars**: Template engine
-- **@aws-sdk/client-s3**: AWS S3 integration
-- **@aws-sdk/s3-request-presigner**: Signed URL generation
+- **@supabase/supabase-js**: Supabase Storage upload and signed URLs
 
 ## Security Considerations
 
-- PDF files are stored with expiration dates (30 days)
-- Signed URLs expire after 24 hours
+- Signed download URLs expire after 24 hours (configure object lifecycle in Supabase if you need automatic deletion)
 - Business data is isolated by business ID
 - No sensitive information is logged in PDF generation process
 
@@ -198,9 +192,9 @@ npm test -- --testPathPattern="pdf-generation.service.spec.ts"
    - Ensure Chrome/Chromium is available in the environment
    - Add `--no-sandbox` flag for Docker environments
 
-2. **S3 Upload Failed**
-   - Verify AWS credentials and permissions
-   - Check bucket name and region configuration
+2. **Supabase upload failed**
+   - Verify `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and bucket policies
+   - Check `SUPABASE_STORAGE_BUCKET` matches the bucket created in the Supabase dashboard
 
 3. **Template Not Found**
    - Service automatically creates default template

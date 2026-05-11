@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, Optional, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, Between, IsNull } from 'typeorm';
 import { Transaction, TransactionType, PaymentMethod } from '../transaction/entities/transaction.entity';
@@ -10,6 +10,7 @@ import { ProductNormalizerService } from '../stock/services/product-normalizer.s
 import { TransactionService } from '../transaction/transaction.service';
 import { StockMovementService } from '../stock/services/stock-movement.service';
 import { ReceivableService } from '../receivable/receivable.service';
+import { RulesEngineService } from '../notification/services/rules-engine.service';
 
 export interface DashboardSummary {
   todaySales: number;
@@ -85,6 +86,7 @@ export class DashboardService {
     private stockMovementService: StockMovementService,
     private receivableService: ReceivableService,
     private dataSource: DataSource,
+    @Optional() @Inject(forwardRef(() => RulesEngineService)) private rulesEngineService: RulesEngineService | null,
   ) {}
 
   /**
@@ -377,6 +379,13 @@ export class DashboardService {
             err,
           );
         }
+      }
+
+      // Règle 3 Phase C — évaluation non bloquante après le save
+      if (this.rulesEngineService) {
+        this.rulesEngineService.evaluateGoalRule(businessId, userId).catch((err) =>
+          this.logger.error('[createTransaction] Goal rule evaluation failed', err),
+        );
       }
 
       return transaction;

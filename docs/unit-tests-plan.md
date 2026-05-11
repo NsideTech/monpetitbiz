@@ -4,7 +4,7 @@
 
 - **Phase 1:** Complétée - DashboardService mock ReceivableService ajouté
 - **Phase 2:** Complétée - TransactionService, LoanService, ReceivableService, EmployeeService
-- **Phase 3:** Complétée - coverageThreshold, exclusions (cli, migrations, lambda)
+- **Phase 3:** Complétée - coverageThreshold, exclusions (cli, migrations)
 - **Phase 4:** En attente - tests additionnels pour atteindre 80% global
 - **Correction:** BotController spec - ReceivableService et LoanService mocks ajoutés
 
@@ -71,7 +71,7 @@ Le `DashboardService` injecte `ReceivableService`. Ajouter le mock dans les prov
 **Fichier:** `jest.config.js`
 
 - `coverageThreshold` avec seuils globaux (baseline actuel)
-- Exclusions: `!src/**/cli/**`, `!src/**/migrations/**`, `!src/lambda.ts`
+- Exclusions: `!src/**/cli/**`, `!src/**/migrations/**`
 
 ---
 

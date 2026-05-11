@@ -66,10 +66,10 @@ add_env_var "TWILIO_WEBHOOK_SECRET" "Webhook secret for signature verification" 
 echo -e "${YELLOW}🔐 JWT Configuration${NC}"
 add_env_var "JWT_SECRET" "JWT secret key (minimum 32 characters)" true
 
-echo -e "${YELLOW}☁️ AWS S3 Configuration${NC}"
-add_env_var "AWS_ACCESS_KEY_ID" "AWS Access Key ID for S3" true
-add_env_var "AWS_SECRET_ACCESS_KEY" "AWS Secret Access Key for S3" true
-add_env_var "AWS_S3_BUCKET" "S3 bucket name for storing reports" false
+echo -e "${YELLOW}📦 Supabase Storage (PDF reports)${NC}"
+add_env_var "SUPABASE_URL" "Supabase project URL (https://xxx.supabase.co)" true
+add_env_var "SUPABASE_SERVICE_ROLE_KEY" "Supabase service role key (server only)" true
+add_env_var "SUPABASE_STORAGE_BUCKET" "Storage bucket name for PDFs (e.g. reports)" false
 
 echo -e "${YELLOW}🌐 Application Configuration${NC}"
 add_env_var "APP_URL" "Your application URL (e.g., https://your-app.vercel.app)" false

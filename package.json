@@ -43,20 +43,20 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@nestjs/common": "^11.1.6",
+    "@nestjs/common": "^11.1.19",
     "@nestjs/config": "^4.0.2",
-    "@nestjs/core": "^11.1.6",
-    "@nestjs/jwt": "^11.0.0",
-    "@nestjs/platform-express": "^11.1.6",
+    "@nestjs/core": "^11.1.19",
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/platform-express": "^11.1.19",
     "@nestjs/schedule": "^6.0.1",
-    "@nestjs/swagger": "^11.2.0",
+    "@nestjs/swagger": "^11.2.3",
     "@nestjs/typeorm": "^11.0.0",
     "@supabase/supabase-js": "^2.105.4",
     "@types/express": "^5.0.3",
     "@types/uuid": "^9.0.8",
     "@vercel/speed-insights": "^1.2.0",
     "class-transformer": "^0.5.1",
-    "class-validator": "^0.14.2",
+    "class-validator": "^0.14.3",
     "express": "^5.1.0",
     "handlebars": "^4.7.8",
     "pg": "^8.16.3",
@@ -68,8 +68,8 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "@nestjs/cli": "^11.0.10",
-    "@nestjs/testing": "^11.1.6",
+    "@nestjs/cli": "^11.0.14",
+    "@nestjs/testing": "^11.1.19",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.7.0",
     "@types/pg": "^8.15.5",
@@ -82,6 +82,41 @@
     "ts-jest": "^29.4.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
-    "vercel": "^48.8.2"
+    "vercel": "^53.3.2"
+  },
+  "overrides": {
+    "tar": "^7.5.15",
+    "@tootallnate/once": "^3.0.1",
+    "http-proxy-agent": "^7.0.2",
+    "undici": "^6.25.0",
+    "ajv": "^8.17.1",
+    "minimatch": "^10.2.5",
+    "smol-toml": "^1.6.1",
+    "srvx": "^0.11.15",
+    "@vercel/fun": {
+      "@tootallnate/once": "^3.0.1",
+      "path-to-regexp": "^8.4.2"
+    },
+    "@vercel/node": {
+      "path-to-regexp": "^6.3.0"
+    },
+    "@vercel/remix-builder": {
+      "path-to-regexp": "^6.3.0"
+    },
+    "@vercel/introspection": {
+      "path-to-regexp": "^6.3.0"
+    },
+    "router": {
+      "path-to-regexp": "^8.4.2"
+    },
+    "@vercel/backends": {
+      "path-to-regexp": "^8.4.2"
+    },
+    "@vercel/hono": {
+      "path-to-regexp": "^8.4.2"
+    },
+    "@vercel/express": {
+      "path-to-regexp": "^8.4.2"
+    }
   }
 }
